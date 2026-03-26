@@ -24,7 +24,13 @@ export interface FurnitureItem {
   material?: Partial<MaterialState>
 }
 
-interface SceneState {
+interface CameraPreset {
+  position: [number, number, number]
+  target: [number, number, number]
+  fov: number
+}
+
+interface SceneData {
   room: {
     width: number
     depth: number
@@ -35,9 +41,11 @@ interface SceneState {
   ceiling: MaterialState
   furniture: FurnitureItem[]
   cameraMode: CameraMode
-  cameraPresets: Record<CameraMode, { position: [number, number, number]; target: [number, number, number]; fov: number }>
+  cameraPresets: Record<CameraMode, CameraPreset>
+}
 
-  setRoomDimensions: (dimensions: Partial<SceneState['room']>) => void
+interface SceneActions {
+  setRoomDimensions: (dimensions: Partial<SceneData['room']>) => void
   setWall: (wall: WallKey, patch: Partial<WallState>) => void
   setFloorMaterial: (patch: Partial<MaterialState>) => void
   setCeilingMaterial: (patch: Partial<MaterialState>) => void
@@ -48,7 +56,27 @@ interface SceneState {
   resetScene: () => void
 }
 
-const initialScene: Omit<SceneState, 'setRoomDimensions' | 'setWall' | 'setFloorMaterial' | 'setCeilingMaterial' | 'addFurniture' | 'updateFurniture' | 'removeFurniture' | 'setCameraMode' | 'resetScene'> = {
+export type SceneState = SceneData & SceneActions
+
+const cameraPresets: Record<CameraMode, CameraPreset> = {
+  orbit: {
+    position: [5, 3, 6],
+    target: [0, 1.4, 0],
+    fov: 50,
+  },
+  top: {
+    position: [0, 10, 0.001],
+    target: [0, 0, 0],
+    fov: 45,
+  },
+  firstPerson: {
+    position: [0, 1.7, 2.5],
+    target: [0, 1.7, 0],
+    fov: 65,
+  },
+}
+
+const createInitialSceneData = (): SceneData => ({
   room: {
     width: 8,
     depth: 8,
@@ -72,51 +100,77 @@ const initialScene: Omit<SceneState, 'setRoomDimensions' | 'setWall' | 'setFloor
   },
   furniture: [],
   cameraMode: 'orbit',
-  cameraPresets: {
-    orbit: {
-      position: [5, 3, 6],
-      target: [0, 1.4, 0],
-      fov: 50,
-    },
-    top: {
-      position: [0, 10, 0.001],
-      target: [0, 0, 0],
-      fov: 45,
-    },
-    firstPerson: {
-      position: [0, 1.7, 2.5],
-      target: [0, 1.7, 0],
-      fov: 65,
-    },
-  },
-}
+  cameraPresets,
+})
 
-export const useSceneStore = create<SceneState>()(
-  persist((set) => ({
-  ...initialScene,
+const createInitialState = (set: (partial: ((state: SceneState) => Partial<SceneState> | SceneState) | Partial<SceneState> | SceneState) => void): SceneState => ({
+  ...createInitialSceneData(),
 
   setRoomDimensions: (dimensions) =>
-    set((state) => ({
-      room: { ...state.room, ...dimensions },
-    })),
+    set((state) => {
+      const nextRoom = { ...state.room, ...dimensions }
+      if (
+        nextRoom.width === state.room.width &&
+        nextRoom.depth === state.room.depth &&
+        nextRoom.height === state.room.height
+      ) {
+        return state
+      }
+
+      return { room: nextRoom }
+    }),
 
   setWall: (wall, patch) =>
-    set((state) => ({
-      walls: {
-        ...state.walls,
-        [wall]: { ...state.walls[wall], ...patch },
-      },
-    })),
+    set((state) => {
+      const currentWall = state.walls[wall]
+      const nextWall = { ...currentWall, ...patch }
+      if (
+        nextWall.color === currentWall.color &&
+        nextWall.textureUrl === currentWall.textureUrl &&
+        nextWall.roughness === currentWall.roughness &&
+        nextWall.metalness === currentWall.metalness &&
+        nextWall.visible === currentWall.visible
+      ) {
+        return state
+      }
+
+      return {
+        walls: {
+          ...state.walls,
+          [wall]: nextWall,
+        },
+      }
+    }),
 
   setFloorMaterial: (patch) =>
-    set((state) => ({
-      floor: { ...state.floor, ...patch },
-    })),
+    set((state) => {
+      const nextFloor = { ...state.floor, ...patch }
+      if (
+        nextFloor.color === state.floor.color &&
+        nextFloor.textureUrl === state.floor.textureUrl &&
+        nextFloor.roughness === state.floor.roughness &&
+        nextFloor.metalness === state.floor.metalness
+      ) {
+        return state
+      }
+
+      return { floor: nextFloor }
+    }),
 
   setCeilingMaterial: (patch) =>
-    set((state) => ({
-      ceiling: { ...state.ceiling, ...patch },
-    })),
+    set((state) => {
+      const nextCeiling = { ...state.ceiling, ...patch }
+      if (
+        nextCeiling.color === state.ceiling.color &&
+        nextCeiling.textureUrl === state.ceiling.textureUrl &&
+        nextCeiling.roughness === state.ceiling.roughness &&
+        nextCeiling.metalness === state.ceiling.metalness
+      ) {
+        return state
+      }
+
+      return { ceiling: nextCeiling }
+    }),
 
   addFurniture: (item) =>
     set((state) => ({
@@ -124,29 +178,49 @@ export const useSceneStore = create<SceneState>()(
     })),
 
   updateFurniture: (id, patch) =>
-    set((state) => ({
-      furniture: state.furniture.map((item) =>
-        item.id === id ? { ...item, ...patch } : item,
-      ),
-    })),
+    set((state) => {
+      const index = state.furniture.findIndex((item) => item.id === id)
+      if (index < 0) {
+        return state
+      }
+
+      const nextFurniture = [...state.furniture]
+      nextFurniture[index] = { ...nextFurniture[index], ...patch }
+
+      return { furniture: nextFurniture }
+    }),
 
   removeFurniture: (id) =>
-    set((state) => ({
-      furniture: state.furniture.filter((item) => item.id !== id),
-    })),
+    set((state) => {
+      const nextFurniture = state.furniture.filter((item) => item.id !== id)
+      if (nextFurniture.length === state.furniture.length) {
+        return state
+      }
+
+      return { furniture: nextFurniture }
+    }),
 
   setCameraMode: (mode) =>
-    set(() => ({
-      cameraMode: mode,
-    })),
+    set((state) => {
+      if (state.cameraMode === mode) {
+        return state
+      }
+
+      return {
+        cameraMode: mode,
+      }
+    }),
 
   resetScene: () =>
     set(() => ({
-      ...initialScene,
+      ...createInitialSceneData(),
     })),
-  }),
-  {
-    name: 'roometry-scene-v1',
+})
+
+export const useSceneStore = create<SceneState>()(
+  persist((set) => createInitialState(set), {
+    name: 'roometry-scene-v2',
+    version: 2,
     storage: createJSONStorage(() => localStorage),
     partialize: (state) => ({
       room: state.room,
@@ -155,7 +229,14 @@ export const useSceneStore = create<SceneState>()(
       ceiling: state.ceiling,
       furniture: state.furniture,
       cameraMode: state.cameraMode,
-      cameraPresets: state.cameraPresets,
     }),
+    migrate: (persistedState) => {
+      const state = persistedState as Partial<SceneData> | undefined
+      return {
+        ...createInitialSceneData(),
+        ...state,
+        cameraPresets,
+      }
+    },
   }),
 )

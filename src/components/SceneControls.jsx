@@ -92,6 +92,13 @@ export default function SceneControls({ onHide }) {
         </select>
       </label>
 
+      {cameraMode === 'firstPerson' && (
+        <p>
+          Click inside the 3D view, then use W A S D or arrow keys to move. Move the
+          mouse to look around.
+        </p>
+      )}
+
       <label>
         Floor Color
         <input

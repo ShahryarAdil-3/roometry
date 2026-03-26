@@ -1,21 +1,18 @@
-import { lazy, Suspense, useState } from 'react'
+import { useState } from 'react'
 import { useSceneStore } from './store/useSceneStore'
 import SceneControls from './components/SceneControls'
+import SceneViewport from './components/SceneViewport'
 import './App.css'
-
-const SceneViewport = lazy(() => import('./components/SceneViewport'))
 
 function App() {
   const cameraMode = useSceneStore((state) => state.cameraMode)
   const cameraPresets = useSceneStore((state) => state.cameraPresets)
-  const activePreset = cameraPresets[cameraMode]
+  const activePreset = cameraPresets[cameraMode] ?? cameraPresets.orbit
   const [showControls, setShowControls] = useState(true)
 
   return (
     <div className="app">
-      <Suspense fallback={<div className="loading-overlay">Loading 3D scene...</div>}>
-        <SceneViewport cameraMode={cameraMode} preset={activePreset} />
-      </Suspense>
+      <SceneViewport cameraMode={cameraMode} preset={activePreset} />
 
       <button
         type="button"

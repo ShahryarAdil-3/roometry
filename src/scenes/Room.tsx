@@ -32,7 +32,7 @@ function Surface({
 
 	const map = useMemo(
 		() => prepareTexture(textureUrl ? loadedTexture : null, repeat),
-		[loadedTexture, repeat, textureUrl],
+		[loadedTexture, repeat[0], repeat[1], textureUrl],
 	)
 
 	return (
