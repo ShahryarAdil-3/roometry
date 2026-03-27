@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSceneStore } from './store/useSceneStore'
 import SceneControls from './components/SceneControls'
 import SceneViewport from './components/SceneViewport'
@@ -9,10 +9,34 @@ function App() {
   const cameraPresets = useSceneStore((state) => state.cameraPresets)
   const activePreset = cameraPresets[cameraMode] ?? cameraPresets.orbit
   const [showControls, setShowControls] = useState(true)
+  const [isFirstPersonLocked, setIsFirstPersonLocked] = useState(false)
+
+  useEffect(() => {
+    if (cameraMode !== 'firstPerson') {
+      setIsFirstPersonLocked(false)
+    }
+  }, [cameraMode])
 
   return (
     <div className="app">
-      <SceneViewport cameraMode={cameraMode} preset={activePreset} />
+      <SceneViewport
+        cameraMode={cameraMode}
+        preset={activePreset}
+        onFirstPersonLockChange={setIsFirstPersonLocked}
+      />
+
+      {cameraMode === 'firstPerson' && (
+        <>
+          {isFirstPersonLocked ? (
+            <div className="crosshair" aria-hidden="true" />
+          ) : (
+            <div className="fp-help">
+              Click inside the 3D scene to enter first-person mode. Press Esc to
+              release cursor.
+            </div>
+          )}
+        </>
+      )}
 
       <button
         type="button"

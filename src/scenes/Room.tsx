@@ -67,6 +67,10 @@ export default function Room({
 	const resolvedCeilingColor = ceilingColor ?? ceiling.color
 	const resolvedFloorTexture = floorTexture ?? floor.textureUrl
 	const resolvedWallTexture = wallTexture ?? walls.north.textureUrl
+	const doorwayWidth = 1.8
+	const doorwayHeight = Math.min(2.2, resolvedHeight - 0.2)
+	const northSideWidth = Math.max((resolvedWidth - doorwayWidth) / 2, 0)
+	const northHeaderHeight = Math.max(resolvedHeight - doorwayHeight, 0)
 
 	return (
 		<group>
@@ -87,14 +91,38 @@ export default function Room({
 			/>
 
 			{walls.north.visible && (
-				<Surface
-					size={[resolvedWidth, resolvedHeight]}
-					position={[0, resolvedHeight / 2, -resolvedDepth / 2]}
-					rotation={[0, 0, 0]}
-					color={wallColor ?? walls.north.color ?? resolvedWallColor}
-					textureUrl={wallTexture ?? walls.north.textureUrl ?? resolvedWallTexture}
-					repeat={[3, 1.5]}
-				/>
+				<>
+					{northSideWidth > 0 && (
+						<Surface
+							size={[northSideWidth, resolvedHeight]}
+							position={[-(doorwayWidth / 2 + northSideWidth / 2), resolvedHeight / 2, -resolvedDepth / 2]}
+							rotation={[0, 0, 0]}
+							color={wallColor ?? walls.north.color ?? resolvedWallColor}
+							textureUrl={wallTexture ?? walls.north.textureUrl ?? resolvedWallTexture}
+							repeat={[1.2, 1.5]}
+						/>
+					)}
+					{northSideWidth > 0 && (
+						<Surface
+							size={[northSideWidth, resolvedHeight]}
+							position={[(doorwayWidth / 2 + northSideWidth / 2), resolvedHeight / 2, -resolvedDepth / 2]}
+							rotation={[0, 0, 0]}
+							color={wallColor ?? walls.north.color ?? resolvedWallColor}
+							textureUrl={wallTexture ?? walls.north.textureUrl ?? resolvedWallTexture}
+							repeat={[1.2, 1.5]}
+						/>
+					)}
+					{northHeaderHeight > 0 && (
+						<Surface
+							size={[doorwayWidth, northHeaderHeight]}
+							position={[0, doorwayHeight + northHeaderHeight / 2, -resolvedDepth / 2]}
+							rotation={[0, 0, 0]}
+							color={wallColor ?? walls.north.color ?? resolvedWallColor}
+							textureUrl={wallTexture ?? walls.north.textureUrl ?? resolvedWallTexture}
+							repeat={[1.2, 0.8]}
+						/>
+					)}
+				</>
 			)}
 			{walls.south.visible && (
 				<Surface

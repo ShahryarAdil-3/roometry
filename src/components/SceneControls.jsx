@@ -37,6 +37,8 @@ export default function SceneControls({ onHide }) {
   const addFurniture = useSceneStore((state) => state.addFurniture)
   const updateFurniture = useSceneStore((state) => state.updateFurniture)
   const removeFurniture = useSceneStore((state) => state.removeFurniture)
+  const firstPerson = useSceneStore((state) => state.firstPerson)
+  const setFirstPersonSettings = useSceneStore((state) => state.setFirstPersonSettings)
   const resetScene = useSceneStore((state) => state.resetScene)
   const [selectedFurnitureId, setSelectedFurnitureId] = useState('')
 
@@ -93,10 +95,96 @@ export default function SceneControls({ onHide }) {
       </label>
 
       {cameraMode === 'firstPerson' && (
-        <p>
-          Click inside the 3D view, then use W A S D or arrow keys to move. Move the
-          mouse to look around.
-        </p>
+        <div className="control-group">
+          <p>
+            Click inside the 3D view, then use W A S D or arrow keys to move, Shift to
+            sprint, and Space to jump. Press Esc to release cursor.
+          </p>
+
+          <label>
+            Move Speed ({firstPerson.moveSpeed.toFixed(1)})
+            <input
+              type="range"
+              min="1"
+              max="8"
+              step="0.1"
+              value={firstPerson.moveSpeed}
+              onChange={(e) =>
+                setFirstPersonSettings({ moveSpeed: Number(e.target.value) })
+              }
+            />
+          </label>
+
+          <label>
+            Look Sensitivity ({firstPerson.lookSensitivity.toFixed(1)})
+            <input
+              type="range"
+              min="0.2"
+              max="2.5"
+              step="0.1"
+              value={firstPerson.lookSensitivity}
+              onChange={(e) =>
+                setFirstPersonSettings({ lookSensitivity: Number(e.target.value) })
+              }
+            />
+          </label>
+
+          <label>
+            Sprint Multiplier ({firstPerson.sprintMultiplier.toFixed(2)})
+            <input
+              type="range"
+              min="1"
+              max="3"
+              step="0.05"
+              value={firstPerson.sprintMultiplier}
+              onChange={(e) =>
+                setFirstPersonSettings({ sprintMultiplier: Number(e.target.value) })
+              }
+            />
+          </label>
+
+          <label>
+            Jump Strength ({firstPerson.jumpVelocity.toFixed(1)})
+            <input
+              type="range"
+              min="2"
+              max="8"
+              step="0.1"
+              value={firstPerson.jumpVelocity}
+              onChange={(e) =>
+                setFirstPersonSettings({ jumpVelocity: Number(e.target.value) })
+              }
+            />
+          </label>
+
+          <label>
+            Crouch Height ({firstPerson.crouchHeight.toFixed(1)}m)
+            <input
+              type="range"
+              min="0.8"
+              max="1.6"
+              step="0.05"
+              value={firstPerson.crouchHeight}
+              onChange={(e) =>
+                setFirstPersonSettings({ crouchHeight: Number(e.target.value) })
+              }
+            />
+          </label>
+
+          <label>
+            Head Bob Intensity ({firstPerson.headBobIntensity.toFixed(2)})
+            <input
+              type="range"
+              min="0"
+              max="0.12"
+              step="0.01"
+              value={firstPerson.headBobIntensity}
+              onChange={(e) =>
+                setFirstPersonSettings({ headBobIntensity: Number(e.target.value) })
+              }
+            />
+          </label>
+        </div>
       )}
 
       <label>

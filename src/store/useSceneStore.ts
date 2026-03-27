@@ -30,6 +30,16 @@ interface CameraPreset {
   fov: number
 }
 
+export interface FirstPersonSettings {
+  moveSpeed: number
+  sprintMultiplier: number
+  jumpVelocity: number
+  lookSensitivity: number
+  headBobIntensity: number
+  headBobFrequency: number
+  crouchHeight: number
+}
+
 interface SceneData {
   room: {
     width: number
@@ -42,6 +52,7 @@ interface SceneData {
   furniture: FurnitureItem[]
   cameraMode: CameraMode
   cameraPresets: Record<CameraMode, CameraPreset>
+  firstPerson: FirstPersonSettings
 }
 
 interface SceneActions {
@@ -53,6 +64,7 @@ interface SceneActions {
   updateFurniture: (id: string, patch: Partial<Omit<FurnitureItem, 'id'>>) => void
   removeFurniture: (id: string) => void
   setCameraMode: (mode: CameraMode) => void
+  setFirstPersonSettings: (patch: Partial<FirstPersonSettings>) => void
   resetScene: () => void
 }
 
@@ -101,6 +113,15 @@ const createInitialSceneData = (): SceneData => ({
   furniture: [],
   cameraMode: 'orbit',
   cameraPresets,
+  firstPerson: {
+    moveSpeed: 2.6,
+    sprintMultiplier: 1.73,
+    jumpVelocity: 4.2,
+    lookSensitivity: 1,
+    headBobIntensity: 0.04,
+    headBobFrequency: 9,
+    crouchHeight: 1.2,
+  },
 })
 
 const createInitialState = (set: (partial: ((state: SceneState) => Partial<SceneState> | SceneState) | Partial<SceneState> | SceneState) => void): SceneState => ({
@@ -211,6 +232,24 @@ const createInitialState = (set: (partial: ((state: SceneState) => Partial<Scene
       }
     }),
 
+  setFirstPersonSettings: (patch) =>
+    set((state) => {
+      const next = { ...state.firstPerson, ...patch }
+      if (
+        next.moveSpeed === state.firstPerson.moveSpeed &&
+        next.sprintMultiplier === state.firstPerson.sprintMultiplier &&
+        next.jumpVelocity === state.firstPerson.jumpVelocity &&
+        next.lookSensitivity === state.firstPerson.lookSensitivity &&
+        next.headBobIntensity === state.firstPerson.headBobIntensity &&
+        next.headBobFrequency === state.firstPerson.headBobFrequency &&
+        next.crouchHeight === state.firstPerson.crouchHeight
+      ) {
+        return state
+      }
+
+      return { firstPerson: next }
+    }),
+
   resetScene: () =>
     set(() => ({
       ...createInitialSceneData(),
@@ -219,8 +258,8 @@ const createInitialState = (set: (partial: ((state: SceneState) => Partial<Scene
 
 export const useSceneStore = create<SceneState>()(
   persist((set) => createInitialState(set), {
-    name: 'roometry-scene-v2',
-    version: 2,
+    name: 'roometry-scene-v3',
+    version: 3,
     storage: createJSONStorage(() => localStorage),
     partialize: (state) => ({
       room: state.room,
@@ -229,6 +268,7 @@ export const useSceneStore = create<SceneState>()(
       ceiling: state.ceiling,
       furniture: state.furniture,
       cameraMode: state.cameraMode,
+      firstPerson: state.firstPerson,
     }),
     migrate: (persistedState) => {
       const state = persistedState as Partial<SceneData> | undefined
