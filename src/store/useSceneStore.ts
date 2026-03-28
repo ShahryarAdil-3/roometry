@@ -25,6 +25,12 @@ export interface FloorPlanRoom {
   doors: RoomDoor[]
 }
 
+export interface FloorPlanCanvas {
+  width: number
+  depth: number
+  pixelsPerMeter: number
+}
+
 export interface MaterialState {
   color: string
   textureUrl?: string
@@ -79,6 +85,10 @@ interface SceneData {
     selectedRoomId: string | null
     uiMode: UiMode
     livePreview: boolean
+    canvas: FloorPlanCanvas
+    snapEnabled: boolean
+    snapStep: number
+    constraintMessage: string | null
   }
 }
 
@@ -94,7 +104,10 @@ interface SceneActions {
   setFirstPersonSettings: (patch: Partial<FirstPersonSettings>) => void
   setUiMode: (mode: UiMode) => void
   setLivePreview: (enabled: boolean) => void
-  createRoom: (room: Omit<FloorPlanRoom, 'id' | 'name' | 'doors'> & { id?: string; name?: string }) => string
+  setCanvasSettings: (patch: Partial<FloorPlanCanvas>) => void
+  setSnapSettings: (patch: { enabled?: boolean; step?: number }) => void
+  createRoom: (room: Omit<FloorPlanRoom, 'id' | 'name' | 'doors'> & { id?: string; name?: string }) => string | null
+  moveRoom: (roomId: string, nextX: number, nextZ: number) => boolean
   updateRoom: (roomId: string, patch: Partial<Omit<FloorPlanRoom, 'id' | 'doors'>>) => void
   removeRoom: (roomId: string) => void
   selectRoom: (roomId: string | null) => void
@@ -130,14 +143,80 @@ const MIN_ROOM_DEPTH = 1
 const MIN_ROOM_HEIGHT = 2
 const MIN_DOOR_WIDTH = 0.6
 const MIN_DOOR_HEIGHT = 1.8
+const MIN_CANVAS_SIZE = 6
+const MAX_CANVAS_SIZE = 200
+const MIN_PIXELS_PER_METER = 16
+const MAX_PIXELS_PER_METER = 140
+const MIN_SNAP_STEP = 0.01
+const MAX_SNAP_STEP = 1
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+const toFinite = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback)
+const clampFinite = (value: number, fallback: number, min: number, max: number) =>
+  clamp(toFinite(value, fallback), min, max)
 
 const sanitizeRoomDimensions = (room: Pick<FloorPlanRoom, 'width' | 'depth' | 'height'>) => ({
-  width: Math.max(room.width, MIN_ROOM_WIDTH),
-  depth: Math.max(room.depth, MIN_ROOM_DEPTH),
-  height: Math.max(room.height, MIN_ROOM_HEIGHT),
+  width: clampFinite(room.width, MIN_ROOM_WIDTH, MIN_ROOM_WIDTH, 1000),
+  depth: clampFinite(room.depth, MIN_ROOM_DEPTH, MIN_ROOM_DEPTH, 1000),
+  height: clampFinite(room.height, MIN_ROOM_HEIGHT, MIN_ROOM_HEIGHT, 1000),
 })
+
+const sanitizeCanvas = (canvas: FloorPlanCanvas): FloorPlanCanvas => ({
+  width: clampFinite(canvas.width, 18, MIN_CANVAS_SIZE, MAX_CANVAS_SIZE),
+  depth: clampFinite(canvas.depth, 14, MIN_CANVAS_SIZE, MAX_CANVAS_SIZE),
+  pixelsPerMeter: clampFinite(canvas.pixelsPerMeter, 36, MIN_PIXELS_PER_METER, MAX_PIXELS_PER_METER),
+})
+
+const clampRoomToCanvas = (room: FloorPlanRoom, canvas: FloorPlanCanvas): FloorPlanRoom => {
+  const minX = -canvas.width / 2
+  const minZ = -canvas.depth / 2
+  const maxX = canvas.width / 2 - room.width
+  const maxZ = canvas.depth / 2 - room.depth
+
+  return {
+    ...room,
+    x: clamp(room.x, minX, maxX),
+    z: clamp(room.z, minZ, maxZ),
+  }
+}
+
+const roomsOverlap = (a: FloorPlanRoom, b: FloorPlanRoom) => {
+  const separated =
+    a.x + a.width <= b.x ||
+    b.x + b.width <= a.x ||
+    a.z + a.depth <= b.z ||
+    b.z + b.depth <= a.z
+
+  return !separated
+}
+
+const validateRoomPlacement = (
+  room: FloorPlanRoom,
+  rooms: FloorPlanRoom[],
+  canvas: FloorPlanCanvas,
+  ignoreRoomId?: string,
+): string | null => {
+  const minX = -canvas.width / 2
+  const minZ = -canvas.depth / 2
+  const maxX = canvas.width / 2
+  const maxZ = canvas.depth / 2
+
+  if (room.x < minX || room.z < minZ || room.x + room.width > maxX || room.z + room.depth > maxZ) {
+    return 'Room must stay inside canvas boundaries.'
+  }
+
+  for (const otherRoom of rooms) {
+    if (otherRoom.id === ignoreRoomId) {
+      continue
+    }
+
+    if (roomsOverlap(room, otherRoom)) {
+      return `Room overlaps with ${otherRoom.name}.`
+    }
+  }
+
+  return null
+}
 
 const doorOffsetLimit = (room: FloorPlanRoom, wall: WallKey, doorWidth: number) => {
   const span = wall === 'north' || wall === 'south' ? room.width : room.depth
@@ -145,14 +224,15 @@ const doorOffsetLimit = (room: FloorPlanRoom, wall: WallKey, doorWidth: number) 
 }
 
 const sanitizeDoor = (room: FloorPlanRoom, door: Omit<RoomDoor, 'id'> & { id?: string }): RoomDoor => {
-  const width = clamp(door.width, MIN_DOOR_WIDTH, (door.wall === 'north' || door.wall === 'south' ? room.width : room.depth) - 0.2)
-  const height = clamp(door.height, MIN_DOOR_HEIGHT, room.height - 0.1)
+  const maxWidth = (door.wall === 'north' || door.wall === 'south' ? room.width : room.depth) - 0.2
+  const width = clampFinite(door.width, 1, MIN_DOOR_WIDTH, maxWidth)
+  const height = clampFinite(door.height, 2.1, MIN_DOOR_HEIGHT, room.height - 0.1)
   const offsetLimit = doorOffsetLimit(room, door.wall, width)
 
   return {
     id: door.id ?? `${door.wall}-door-${Date.now()}`,
     wall: door.wall,
-    offset: clamp(door.offset, -offsetLimit, offsetLimit),
+    offset: clampFinite(door.offset, 0, -offsetLimit, offsetLimit),
     width,
     height,
   }
@@ -220,6 +300,14 @@ const createInitialSceneData = (): SceneData => ({
     selectedRoomId: null,
     uiMode: 'draw',
     livePreview: true,
+    canvas: {
+      width: 18,
+      depth: 14,
+      pixelsPerMeter: 36,
+    },
+    snapEnabled: true,
+    snapStep: 0.1,
+    constraintMessage: null,
   },
 })
 
@@ -388,12 +476,84 @@ const createInitialState = (
       }
     }),
 
+  setCanvasSettings: (patch) =>
+    set((state) => {
+      const nextCanvas = sanitizeCanvas({
+        ...state.floorPlan.canvas,
+        ...patch,
+      })
+
+      if (
+        nextCanvas.width === state.floorPlan.canvas.width &&
+        nextCanvas.depth === state.floorPlan.canvas.depth &&
+        nextCanvas.pixelsPerMeter === state.floorPlan.canvas.pixelsPerMeter
+      ) {
+        return state
+      }
+
+      const nextRooms = state.floorPlan.rooms.map((room) => clampRoomToCanvas(room, nextCanvas))
+      for (let index = 0; index < nextRooms.length; index += 1) {
+        const message = validateRoomPlacement(
+          nextRooms[index],
+          nextRooms,
+          nextCanvas,
+          nextRooms[index].id,
+        )
+
+        if (message) {
+          return {
+            floorPlan: {
+              ...state.floorPlan,
+              constraintMessage:
+                'Cannot apply canvas size because it would cause room overlap or out-of-bounds placement.',
+            },
+          }
+        }
+      }
+
+      return {
+        floorPlan: {
+          ...state.floorPlan,
+          canvas: nextCanvas,
+          rooms: nextRooms,
+          constraintMessage: null,
+        },
+      }
+    }),
+
+  setSnapSettings: (patch) =>
+    set((state) => {
+      const nextEnabled = patch.enabled ?? state.floorPlan.snapEnabled
+      const nextStep = clampFinite(
+        patch.step ?? state.floorPlan.snapStep,
+        state.floorPlan.snapStep,
+        MIN_SNAP_STEP,
+        MAX_SNAP_STEP,
+      )
+
+      if (
+        nextEnabled === state.floorPlan.snapEnabled &&
+        nextStep === state.floorPlan.snapStep
+      ) {
+        return state
+      }
+
+      return {
+        floorPlan: {
+          ...state.floorPlan,
+          snapEnabled: nextEnabled,
+          snapStep: nextStep,
+        },
+      }
+    }),
+
   createRoom: (room) => {
     const roomId = room.id ?? `room-${Date.now()}`
+    let createdId: string | null = null
     set((state) => {
       const name = room.name ?? `Room ${state.floorPlan.rooms.length + 1}`
       const dimensions = sanitizeRoomDimensions(room)
-      const nextRoom: FloorPlanRoom = {
+      const candidateRoom: FloorPlanRoom = {
         id: roomId,
         name,
         x: room.x,
@@ -405,12 +565,30 @@ const createInitialState = (
         doors: [],
       }
 
+      const nextRoom = clampRoomToCanvas(candidateRoom, state.floorPlan.canvas)
+      const placementIssue = validateRoomPlacement(
+        nextRoom,
+        state.floorPlan.rooms,
+        state.floorPlan.canvas,
+      )
+      if (placementIssue) {
+        return {
+          floorPlan: {
+            ...state.floorPlan,
+            constraintMessage: placementIssue,
+          },
+        }
+      }
+
+      createdId = roomId
+
       const nextState: SceneState = {
         ...state,
         floorPlan: {
           ...state.floorPlan,
           rooms: [...state.floorPlan.rooms, nextRoom],
           selectedRoomId: roomId,
+          constraintMessage: null,
         },
       }
 
@@ -422,7 +600,68 @@ const createInitialState = (
       return nextState
     })
 
-    return roomId
+    return createdId
+  },
+
+  moveRoom: (roomId, nextX, nextZ) => {
+    let moved = false
+    set((state) => {
+      const roomIndex = state.floorPlan.rooms.findIndex((room) => room.id === roomId)
+      if (roomIndex < 0) {
+        return state
+      }
+
+      const currentRoom = state.floorPlan.rooms[roomIndex]
+      const nextRoom = clampRoomToCanvas(
+        {
+          ...currentRoom,
+          x: nextX,
+          z: nextZ,
+        },
+        state.floorPlan.canvas,
+      )
+
+      const placementIssue = validateRoomPlacement(
+        nextRoom,
+        state.floorPlan.rooms,
+        state.floorPlan.canvas,
+        roomId,
+      )
+      if (placementIssue) {
+        return {
+          floorPlan: {
+            ...state.floorPlan,
+            constraintMessage: placementIssue,
+          },
+        }
+      }
+
+      const nextRooms = [...state.floorPlan.rooms]
+      nextRooms[roomIndex] = nextRoom
+
+      moved = nextRoom.x !== currentRoom.x || nextRoom.z !== currentRoom.z
+
+      const nextState: SceneState = {
+        ...state,
+        floorPlan: {
+          ...state.floorPlan,
+          rooms: nextRooms,
+          constraintMessage: null,
+        },
+      }
+
+      if (
+        roomId === state.floorPlan.selectedRoomId &&
+        (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize')
+      ) {
+        const synced = syncRoomToScene(nextState)
+        return synced === nextState ? nextState : { ...nextState, ...synced }
+      }
+
+      return nextState
+    })
+
+    return moved
   },
 
   updateRoom: (roomId, patch) =>
@@ -435,12 +674,28 @@ const createInitialState = (
       const currentRoom = state.floorPlan.rooms[roomIndex]
       const merged = { ...currentRoom, ...patch }
       const dimensions = sanitizeRoomDimensions(merged)
-      const nextRoom: FloorPlanRoom = {
+      const roomBeforeClamp: FloorPlanRoom = {
         ...merged,
         width: dimensions.width,
         depth: dimensions.depth,
         height: dimensions.height,
         wallThickness: Math.max(merged.wallThickness, 0.05),
+      }
+
+      const nextRoom = clampRoomToCanvas(roomBeforeClamp, state.floorPlan.canvas)
+      const placementIssue = validateRoomPlacement(
+        nextRoom,
+        state.floorPlan.rooms,
+        state.floorPlan.canvas,
+        roomId,
+      )
+      if (placementIssue) {
+        return {
+          floorPlan: {
+            ...state.floorPlan,
+            constraintMessage: placementIssue,
+          },
+        }
       }
 
       const nextRooms = [...state.floorPlan.rooms]
@@ -451,6 +706,7 @@ const createInitialState = (
         floorPlan: {
           ...state.floorPlan,
           rooms: nextRooms,
+          constraintMessage: null,
         },
       }
 
@@ -483,6 +739,7 @@ const createInitialState = (
           ...state.floorPlan,
           rooms: nextRooms,
           selectedRoomId: nextSelectedId,
+          constraintMessage: null,
         },
       }
 
@@ -505,6 +762,7 @@ const createInitialState = (
         floorPlan: {
           ...state.floorPlan,
           selectedRoomId: roomId,
+          constraintMessage: null,
         },
       }
 
@@ -558,6 +816,7 @@ const createInitialState = (
         floorPlan: {
           ...state.floorPlan,
           rooms: nextRooms,
+          constraintMessage: null,
         },
       }
     }),
@@ -585,6 +844,7 @@ const createInitialState = (
         floorPlan: {
           ...state.floorPlan,
           rooms: nextRooms,
+          constraintMessage: null,
         },
       }
     }),
@@ -604,7 +864,7 @@ const createInitialState = (
 export const useSceneStore = create<SceneState>()(
   persist((set, get) => createInitialState(set, get), {
     name: 'roometry-scene-v3',
-    version: 4,
+    version: 5,
     storage: createJSONStorage(() => localStorage),
     partialize: (state) => ({
       room: state.room,
@@ -618,6 +878,7 @@ export const useSceneStore = create<SceneState>()(
     }),
     migrate: (persistedState) => {
       const state = persistedState as Partial<SceneData> | undefined
+      const initialFloorPlan = createInitialSceneData().floorPlan
 
       const migratedRooms = state?.floorPlan?.rooms?.map((room, index) => ({
         ...room,
@@ -626,13 +887,25 @@ export const useSceneStore = create<SceneState>()(
         doors: Array.isArray(room.doors) ? room.doors : [],
       }))
 
+      const migratedCanvas = sanitizeCanvas({
+        width: state?.floorPlan?.canvas?.width ?? initialFloorPlan.canvas.width,
+        depth: state?.floorPlan?.canvas?.depth ?? initialFloorPlan.canvas.depth,
+        pixelsPerMeter:
+          state?.floorPlan?.canvas?.pixelsPerMeter ??
+          initialFloorPlan.canvas.pixelsPerMeter,
+      })
+
       return {
         ...createInitialSceneData(),
         ...state,
         floorPlan: {
-          ...createInitialSceneData().floorPlan,
+          ...initialFloorPlan,
           ...(state?.floorPlan ?? {}),
           rooms: migratedRooms ?? [],
+          canvas: migratedCanvas,
+          snapEnabled: state?.floorPlan?.snapEnabled ?? initialFloorPlan.snapEnabled,
+          snapStep: clamp(state?.floorPlan?.snapStep ?? initialFloorPlan.snapStep, MIN_SNAP_STEP, MAX_SNAP_STEP),
+          constraintMessage: null,
           selectedRoomId:
             state?.floorPlan?.selectedRoomId ??
             (migratedRooms && migratedRooms.length > 0 ? migratedRooms[0].id : null),
