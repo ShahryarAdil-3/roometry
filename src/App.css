@@ -2,6 +2,7 @@
   position: relative;
   width: 100%;
   height: 100svh;
+  overflow: hidden;
 }
 
 .app canvas {
@@ -205,7 +206,126 @@
   background: rgba(255, 82, 82, 0.25);
 }
 
+.floor-map-shell {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 16px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(136, 190, 223, 0.32), transparent 48%),
+    radial-gradient(circle at 85% 10%, rgba(233, 187, 137, 0.28), transparent 42%),
+    linear-gradient(145deg, #d4e3ed 0%, #eef4f8 50%, #dae5ef 100%);
+}
+
+.floor-map-header {
+  margin-bottom: 10px;
+  color: #1d2b37;
+}
+
+.floor-map-header h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+
+.floor-map-header p {
+  margin-top: 4px;
+  font-size: 14px;
+  color: #2d4051;
+}
+
+.floor-map-canvas {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid rgba(14, 35, 52, 0.18);
+  background: rgba(255, 255, 255, 0.74);
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.floor-map-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(20, 48, 71, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 48, 71, 0.09) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.room-rect,
+.draft-rect {
+  position: absolute;
+}
+
+.room-rect {
+  border: 2px solid #2f6d93;
+  background: rgba(69, 147, 195, 0.18);
+  color: #123249;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 2;
+  padding: 0;
+}
+
+.room-rect.selected {
+  border-color: #f06f21;
+  background: rgba(240, 111, 33, 0.24);
+}
+
+.room-rect span {
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 3px 6px;
+  border-radius: 999px;
+}
+
+.draft-rect {
+  border: 2px dashed #f06f21;
+  background: rgba(240, 111, 33, 0.15);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.mode-badge {
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: #d8e8f5;
+}
+
+.mode-toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mode-toggle-row button.active {
+  border-color: rgba(255, 183, 90, 0.8);
+  background: rgba(255, 183, 90, 0.22);
+}
+
+.inline-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.inline-row.inline-row-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 720px) {
+  .floor-map-shell {
+    padding: 12px;
+  }
+
+  .floor-map-header h1 {
+    font-size: 22px;
+  }
+
   .scene-controls {
     top: auto;
     bottom: 12px;

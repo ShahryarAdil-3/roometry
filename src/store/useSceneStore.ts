@@ -3,6 +3,27 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 
 export type WallKey = 'north' | 'south' | 'east' | 'west'
 export type CameraMode = 'orbit' | 'top' | 'firstPerson'
+export type UiMode = 'draw' | 'visualize'
+
+export interface RoomDoor {
+  id: string
+  wall: WallKey
+  offset: number
+  width: number
+  height: number
+}
+
+export interface FloorPlanRoom {
+  id: string
+  name: string
+  x: number
+  z: number
+  width: number
+  depth: number
+  height: number
+  wallThickness: number
+  doors: RoomDoor[]
+}
 
 export interface MaterialState {
   color: string
@@ -53,6 +74,12 @@ interface SceneData {
   cameraMode: CameraMode
   cameraPresets: Record<CameraMode, CameraPreset>
   firstPerson: FirstPersonSettings
+  floorPlan: {
+    rooms: FloorPlanRoom[]
+    selectedRoomId: string | null
+    uiMode: UiMode
+    livePreview: boolean
+  }
 }
 
 interface SceneActions {
@@ -65,6 +92,16 @@ interface SceneActions {
   removeFurniture: (id: string) => void
   setCameraMode: (mode: CameraMode) => void
   setFirstPersonSettings: (patch: Partial<FirstPersonSettings>) => void
+  setUiMode: (mode: UiMode) => void
+  setLivePreview: (enabled: boolean) => void
+  createRoom: (room: Omit<FloorPlanRoom, 'id' | 'name' | 'doors'> & { id?: string; name?: string }) => string
+  updateRoom: (roomId: string, patch: Partial<Omit<FloorPlanRoom, 'id' | 'doors'>>) => void
+  removeRoom: (roomId: string) => void
+  selectRoom: (roomId: string | null) => void
+  setSelectedRoomDimensions: (patch: Partial<Pick<FloorPlanRoom, 'width' | 'depth' | 'height'>>) => void
+  upsertDoor: (roomId: string, door: Omit<RoomDoor, 'id'> & { id?: string }) => void
+  removeDoor: (roomId: string, doorId: string) => void
+  applySelectedRoomToScene: () => void
   resetScene: () => void
 }
 
@@ -86,6 +123,62 @@ const cameraPresets: Record<CameraMode, CameraPreset> = {
     target: [0, 1.7, 0],
     fov: 65,
   },
+}
+
+const MIN_ROOM_WIDTH = 1
+const MIN_ROOM_DEPTH = 1
+const MIN_ROOM_HEIGHT = 2
+const MIN_DOOR_WIDTH = 0.6
+const MIN_DOOR_HEIGHT = 1.8
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+const sanitizeRoomDimensions = (room: Pick<FloorPlanRoom, 'width' | 'depth' | 'height'>) => ({
+  width: Math.max(room.width, MIN_ROOM_WIDTH),
+  depth: Math.max(room.depth, MIN_ROOM_DEPTH),
+  height: Math.max(room.height, MIN_ROOM_HEIGHT),
+})
+
+const doorOffsetLimit = (room: FloorPlanRoom, wall: WallKey, doorWidth: number) => {
+  const span = wall === 'north' || wall === 'south' ? room.width : room.depth
+  return Math.max(0, span / 2 - doorWidth / 2)
+}
+
+const sanitizeDoor = (room: FloorPlanRoom, door: Omit<RoomDoor, 'id'> & { id?: string }): RoomDoor => {
+  const width = clamp(door.width, MIN_DOOR_WIDTH, (door.wall === 'north' || door.wall === 'south' ? room.width : room.depth) - 0.2)
+  const height = clamp(door.height, MIN_DOOR_HEIGHT, room.height - 0.1)
+  const offsetLimit = doorOffsetLimit(room, door.wall, width)
+
+  return {
+    id: door.id ?? `${door.wall}-door-${Date.now()}`,
+    wall: door.wall,
+    offset: clamp(door.offset, -offsetLimit, offsetLimit),
+    width,
+    height,
+  }
+}
+
+const syncRoomToScene = (state: SceneState): Partial<SceneState> | SceneState => {
+  const selectedRoom = state.floorPlan.rooms.find((room) => room.id === state.floorPlan.selectedRoomId)
+  if (!selectedRoom) {
+    return state
+  }
+
+  const nextDimensions = sanitizeRoomDimensions(selectedRoom)
+  if (
+    state.room.width === nextDimensions.width &&
+    state.room.depth === nextDimensions.depth &&
+    state.room.height === nextDimensions.height
+  ) {
+    return state
+  }
+
+  return {
+    room: {
+      ...state.room,
+      ...nextDimensions,
+    },
+  }
 }
 
 const createInitialSceneData = (): SceneData => ({
@@ -122,9 +215,18 @@ const createInitialSceneData = (): SceneData => ({
     headBobFrequency: 9,
     crouchHeight: 1.2,
   },
+  floorPlan: {
+    rooms: [],
+    selectedRoomId: null,
+    uiMode: 'draw',
+    livePreview: true,
+  },
 })
 
-const createInitialState = (set: (partial: ((state: SceneState) => Partial<SceneState> | SceneState) | Partial<SceneState> | SceneState) => void): SceneState => ({
+const createInitialState = (
+  set: (partial: ((state: SceneState) => Partial<SceneState> | SceneState) | Partial<SceneState> | SceneState) => void,
+  get: () => SceneState,
+): SceneState => ({
   ...createInitialSceneData(),
 
   setRoomDimensions: (dimensions) =>
@@ -250,6 +352,249 @@ const createInitialState = (set: (partial: ((state: SceneState) => Partial<Scene
       return { firstPerson: next }
     }),
 
+  setUiMode: (mode) =>
+    set((state) => {
+      if (state.floorPlan.uiMode === mode) {
+        return state
+      }
+
+      const nextState: SceneState = {
+        ...state,
+        floorPlan: {
+          ...state.floorPlan,
+          uiMode: mode,
+        },
+      }
+
+      if (mode === 'visualize') {
+        const synced = syncRoomToScene(nextState)
+        return synced === nextState ? nextState : { ...nextState, ...synced }
+      }
+
+      return nextState
+    }),
+
+  setLivePreview: (enabled) =>
+    set((state) => {
+      if (state.floorPlan.livePreview === enabled) {
+        return state
+      }
+
+      return {
+        floorPlan: {
+          ...state.floorPlan,
+          livePreview: enabled,
+        },
+      }
+    }),
+
+  createRoom: (room) => {
+    const roomId = room.id ?? `room-${Date.now()}`
+    set((state) => {
+      const name = room.name ?? `Room ${state.floorPlan.rooms.length + 1}`
+      const dimensions = sanitizeRoomDimensions(room)
+      const nextRoom: FloorPlanRoom = {
+        id: roomId,
+        name,
+        x: room.x,
+        z: room.z,
+        width: dimensions.width,
+        depth: dimensions.depth,
+        height: dimensions.height,
+        wallThickness: Math.max(room.wallThickness, 0.05),
+        doors: [],
+      }
+
+      const nextState: SceneState = {
+        ...state,
+        floorPlan: {
+          ...state.floorPlan,
+          rooms: [...state.floorPlan.rooms, nextRoom],
+          selectedRoomId: roomId,
+        },
+      }
+
+      if (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize') {
+        const synced = syncRoomToScene(nextState)
+        return synced === nextState ? nextState : { ...nextState, ...synced }
+      }
+
+      return nextState
+    })
+
+    return roomId
+  },
+
+  updateRoom: (roomId, patch) =>
+    set((state) => {
+      const roomIndex = state.floorPlan.rooms.findIndex((room) => room.id === roomId)
+      if (roomIndex < 0) {
+        return state
+      }
+
+      const currentRoom = state.floorPlan.rooms[roomIndex]
+      const merged = { ...currentRoom, ...patch }
+      const dimensions = sanitizeRoomDimensions(merged)
+      const nextRoom: FloorPlanRoom = {
+        ...merged,
+        width: dimensions.width,
+        depth: dimensions.depth,
+        height: dimensions.height,
+        wallThickness: Math.max(merged.wallThickness, 0.05),
+      }
+
+      const nextRooms = [...state.floorPlan.rooms]
+      nextRooms[roomIndex] = nextRoom
+
+      const nextState: SceneState = {
+        ...state,
+        floorPlan: {
+          ...state.floorPlan,
+          rooms: nextRooms,
+        },
+      }
+
+      if (
+        roomId === state.floorPlan.selectedRoomId &&
+        (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize')
+      ) {
+        const synced = syncRoomToScene(nextState)
+        return synced === nextState ? nextState : { ...nextState, ...synced }
+      }
+
+      return nextState
+    }),
+
+  removeRoom: (roomId) =>
+    set((state) => {
+      const nextRooms = state.floorPlan.rooms.filter((room) => room.id !== roomId)
+      if (nextRooms.length === state.floorPlan.rooms.length) {
+        return state
+      }
+
+      const nextSelectedId =
+        state.floorPlan.selectedRoomId === roomId
+          ? (nextRooms[0]?.id ?? null)
+          : state.floorPlan.selectedRoomId
+
+      const nextState: SceneState = {
+        ...state,
+        floorPlan: {
+          ...state.floorPlan,
+          rooms: nextRooms,
+          selectedRoomId: nextSelectedId,
+        },
+      }
+
+      if (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize') {
+        const synced = syncRoomToScene(nextState)
+        return synced === nextState ? nextState : { ...nextState, ...synced }
+      }
+
+      return nextState
+    }),
+
+  selectRoom: (roomId) =>
+    set((state) => {
+      if (state.floorPlan.selectedRoomId === roomId) {
+        return state
+      }
+
+      const nextState: SceneState = {
+        ...state,
+        floorPlan: {
+          ...state.floorPlan,
+          selectedRoomId: roomId,
+        },
+      }
+
+      if (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize') {
+        const synced = syncRoomToScene(nextState)
+        return synced === nextState ? nextState : { ...nextState, ...synced }
+      }
+
+      return nextState
+    }),
+
+  setSelectedRoomDimensions: (patch) => {
+    const selectedRoomId = get().floorPlan.selectedRoomId
+    if (!selectedRoomId) {
+      return
+    }
+
+    get().updateRoom(selectedRoomId, patch)
+  },
+
+  upsertDoor: (roomId, door) =>
+    set((state) => {
+      const roomIndex = state.floorPlan.rooms.findIndex((room) => room.id === roomId)
+      if (roomIndex < 0) {
+        return state
+      }
+
+      const room = state.floorPlan.rooms[roomIndex]
+      const sanitizedDoor = sanitizeDoor(room, door)
+      const existingIndex = room.doors.findIndex((item) => item.id === sanitizedDoor.id)
+      const doorOnWallIndex = room.doors.findIndex(
+        (item) => item.wall === sanitizedDoor.wall && item.id !== sanitizedDoor.id,
+      )
+
+      const nextDoors = [...room.doors]
+      if (existingIndex >= 0) {
+        nextDoors[existingIndex] = sanitizedDoor
+      } else if (doorOnWallIndex >= 0) {
+        nextDoors[doorOnWallIndex] = sanitizedDoor
+      } else {
+        nextDoors.push(sanitizedDoor)
+      }
+
+      const nextRooms = [...state.floorPlan.rooms]
+      nextRooms[roomIndex] = {
+        ...room,
+        doors: nextDoors,
+      }
+
+      return {
+        floorPlan: {
+          ...state.floorPlan,
+          rooms: nextRooms,
+        },
+      }
+    }),
+
+  removeDoor: (roomId, doorId) =>
+    set((state) => {
+      const roomIndex = state.floorPlan.rooms.findIndex((room) => room.id === roomId)
+      if (roomIndex < 0) {
+        return state
+      }
+
+      const room = state.floorPlan.rooms[roomIndex]
+      const nextDoors = room.doors.filter((door) => door.id !== doorId)
+      if (nextDoors.length === room.doors.length) {
+        return state
+      }
+
+      const nextRooms = [...state.floorPlan.rooms]
+      nextRooms[roomIndex] = {
+        ...room,
+        doors: nextDoors,
+      }
+
+      return {
+        floorPlan: {
+          ...state.floorPlan,
+          rooms: nextRooms,
+        },
+      }
+    }),
+
+  applySelectedRoomToScene: () =>
+    set((state) => {
+      const synced = syncRoomToScene(state)
+      return synced
+    }),
+
   resetScene: () =>
     set(() => ({
       ...createInitialSceneData(),
@@ -257,9 +602,9 @@ const createInitialState = (set: (partial: ((state: SceneState) => Partial<Scene
 })
 
 export const useSceneStore = create<SceneState>()(
-  persist((set) => createInitialState(set), {
+  persist((set, get) => createInitialState(set, get), {
     name: 'roometry-scene-v3',
-    version: 3,
+    version: 4,
     storage: createJSONStorage(() => localStorage),
     partialize: (state) => ({
       room: state.room,
@@ -269,12 +614,29 @@ export const useSceneStore = create<SceneState>()(
       furniture: state.furniture,
       cameraMode: state.cameraMode,
       firstPerson: state.firstPerson,
+      floorPlan: state.floorPlan,
     }),
     migrate: (persistedState) => {
       const state = persistedState as Partial<SceneData> | undefined
+
+      const migratedRooms = state?.floorPlan?.rooms?.map((room, index) => ({
+        ...room,
+        name: room.name ?? `Room ${index + 1}`,
+        wallThickness: Math.max(room.wallThickness ?? 0.12, 0.05),
+        doors: Array.isArray(room.doors) ? room.doors : [],
+      }))
+
       return {
         ...createInitialSceneData(),
         ...state,
+        floorPlan: {
+          ...createInitialSceneData().floorPlan,
+          ...(state?.floorPlan ?? {}),
+          rooms: migratedRooms ?? [],
+          selectedRoomId:
+            state?.floorPlan?.selectedRoomId ??
+            (migratedRooms && migratedRooms.length > 0 ? migratedRooms[0].id : null),
+        },
         cameraPresets,
       }
     },

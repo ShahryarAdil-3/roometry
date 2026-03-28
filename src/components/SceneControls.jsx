@@ -25,6 +25,17 @@ const sampleFurnitureTemplates = [
 ]
 
 export default function SceneControls({ onHide }) {
+  const floorPlan = useSceneStore((state) => state.floorPlan)
+  const setUiMode = useSceneStore((state) => state.setUiMode)
+  const setLivePreview = useSceneStore((state) => state.setLivePreview)
+  const selectRoom = useSceneStore((state) => state.selectRoom)
+  const updateRoom = useSceneStore((state) => state.updateRoom)
+  const removeRoom = useSceneStore((state) => state.removeRoom)
+  const setSelectedRoomDimensions = useSceneStore((state) => state.setSelectedRoomDimensions)
+  const upsertDoor = useSceneStore((state) => state.upsertDoor)
+  const removeDoor = useSceneStore((state) => state.removeDoor)
+  const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
+
   const cameraMode = useSceneStore((state) => state.cameraMode)
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
   const floor = useSceneStore((state) => state.floor)
@@ -40,7 +51,17 @@ export default function SceneControls({ onHide }) {
   const firstPerson = useSceneStore((state) => state.firstPerson)
   const setFirstPersonSettings = useSceneStore((state) => state.setFirstPersonSettings)
   const resetScene = useSceneStore((state) => state.resetScene)
+
   const [selectedFurnitureId, setSelectedFurnitureId] = useState('')
+  const [doorWall, setDoorWall] = useState('north')
+  const [doorOffset, setDoorOffset] = useState(0)
+  const [doorWidth, setDoorWidth] = useState(1)
+  const [doorHeight, setDoorHeight] = useState(2.1)
+
+  const selectedRoom = useMemo(
+    () => floorPlan.rooms.find((room) => room.id === floorPlan.selectedRoomId) ?? null,
+    [floorPlan.rooms, floorPlan.selectedRoomId],
+  )
 
   const selectedFurniture = useMemo(
     () => furniture.find((item) => item.id === selectedFurnitureId),
@@ -76,6 +97,8 @@ export default function SceneControls({ onHide }) {
     })
   }
 
+  const currentWallDoor = selectedRoom?.doors.find((door) => door.wall === doorWall)
+
   return (
     <aside className="scene-controls">
       <div className="controls-header">
@@ -84,6 +107,263 @@ export default function SceneControls({ onHide }) {
           Hide
         </button>
       </div>
+
+      <div className="control-group">
+        <div className="mode-badge">Mode: {floorPlan.uiMode === 'draw' ? '2D Floor Map' : '3D Visualization'}</div>
+        <div className="mode-toggle-row">
+          <button
+            type="button"
+            className={floorPlan.uiMode === 'draw' ? 'active' : ''}
+            onClick={() => setUiMode('draw')}
+          >
+            Draw Floor Map
+          </button>
+          <button
+            type="button"
+            className={floorPlan.uiMode === 'visualize' ? 'active' : ''}
+            onClick={() => {
+              applySelectedRoomToScene()
+              setUiMode('visualize')
+            }}
+            disabled={!selectedRoom}
+          >
+            Visualize 3D
+          </button>
+        </div>
+      </div>
+
+      <div className="control-group">
+        <p>Rooms</p>
+        <label>
+          Selected Room
+          <select
+            value={floorPlan.selectedRoomId ?? ''}
+            onChange={(e) => selectRoom(e.target.value || null)}
+          >
+            <option value="">None</option>
+            {floorPlan.rooms.map((room) => (
+              <option key={room.id} value={room.id}>
+                {room.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {selectedRoom && (
+          <>
+            <label>
+              Room Name
+              <input
+                type="text"
+                value={selectedRoom.name}
+                onChange={(e) => updateRoom(selectedRoom.id, { name: e.target.value || selectedRoom.name })}
+              />
+            </label>
+
+            <div className="inline-row">
+              <label>
+                Width (m)
+                <input
+                  type="number"
+                  min="1"
+                  step="0.1"
+                  value={selectedRoom.width}
+                  onChange={(e) =>
+                    setSelectedRoomDimensions({ width: Number(e.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Depth (m)
+                <input
+                  type="number"
+                  min="1"
+                  step="0.1"
+                  value={selectedRoom.depth}
+                  onChange={(e) =>
+                    setSelectedRoomDimensions({ depth: Number(e.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Height (m)
+                <input
+                  type="number"
+                  min="2"
+                  step="0.1"
+                  value={selectedRoom.height}
+                  onChange={(e) =>
+                    setSelectedRoomDimensions({ height: Number(e.target.value) })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="inline-row inline-row-2">
+              <label>
+                Origin X
+                <input
+                  type="number"
+                  step="0.1"
+                  value={selectedRoom.x}
+                  onChange={(e) => updateRoom(selectedRoom.id, { x: Number(e.target.value) })}
+                />
+              </label>
+              <label>
+                Origin Z
+                <input
+                  type="number"
+                  step="0.1"
+                  value={selectedRoom.z}
+                  onChange={(e) => updateRoom(selectedRoom.id, { z: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+
+            <label>
+              Wall Thickness (2D only)
+              <input
+                type="number"
+                min="0.05"
+                step="0.01"
+                value={selectedRoom.wallThickness}
+                onChange={(e) =>
+                  updateRoom(selectedRoom.id, {
+                    wallThickness: Number(e.target.value),
+                  })
+                }
+              />
+            </label>
+
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={floorPlan.livePreview}
+                onChange={(e) => setLivePreview(e.target.checked)}
+              />
+              Live preview selected room in 3D while editing
+            </label>
+
+            <button
+              type="button"
+              onClick={() => {
+                applySelectedRoomToScene()
+                setUiMode('visualize')
+              }}
+            >
+              Visualize Selected Room
+            </button>
+
+            <button type="button" onClick={() => removeRoom(selectedRoom.id)}>
+              Remove Selected Room
+            </button>
+          </>
+        )}
+
+        <ul className="furniture-list">
+          {floorPlan.rooms.map((room) => (
+            <li key={room.id}>
+              <span>{room.name}</span>
+              <button type="button" onClick={() => selectRoom(room.id)}>
+                Select
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {selectedRoom && (
+        <div className="control-group">
+          <p>Door Placement</p>
+          <label>
+            Wall
+            <select value={doorWall} onChange={(e) => setDoorWall(e.target.value)}>
+              {wallOrder.map((wallKey) => (
+                <option key={wallKey} value={wallKey}>
+                  {wallKey}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="inline-row">
+            <label>
+              Offset
+              <input
+                type="number"
+                step="0.1"
+                value={doorOffset}
+                onChange={(e) => setDoorOffset(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Width
+              <input
+                type="number"
+                min="0.6"
+                step="0.1"
+                value={doorWidth}
+                onChange={(e) => setDoorWidth(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Height
+              <input
+                type="number"
+                min="1.8"
+                step="0.1"
+                value={doorHeight}
+                onChange={(e) => setDoorHeight(Number(e.target.value))}
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              upsertDoor(selectedRoom.id, {
+                id: currentWallDoor?.id,
+                wall: doorWall,
+                offset: doorOffset,
+                width: doorWidth,
+                height: doorHeight,
+              })
+            }
+          >
+            {currentWallDoor ? 'Update Door' : 'Add Door'} on {doorWall}
+          </button>
+
+          {currentWallDoor && (
+            <button
+              type="button"
+              onClick={() => removeDoor(selectedRoom.id, currentWallDoor.id)}
+            >
+              Remove {doorWall} Door
+            </button>
+          )}
+
+          <ul className="furniture-list">
+            {selectedRoom.doors.map((door) => (
+              <li key={door.id}>
+                <span>
+                  {door.wall}: {door.width.toFixed(1)}m x {door.height.toFixed(1)}m
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDoorWall(door.wall)
+                    setDoorOffset(door.offset)
+                    setDoorWidth(door.width)
+                    setDoorHeight(door.height)
+                  }}
+                >
+                  Edit
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <label>
         Camera

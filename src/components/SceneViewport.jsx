@@ -5,6 +5,8 @@ import * as THREE from 'three'
 import Room from '../scenes/room'
 import { useSceneStore } from '../store/useSceneStore'
 
+/* eslint-disable react-hooks/immutability */
+
 function CameraSync({ preset }) {
   const camera = useThree((state) => state.camera)
 
@@ -22,6 +24,7 @@ function FirstPersonController({
   roomWidth,
   roomDepth,
   eyeHeight = 1.7,
+  doors,
   furniture,
   settings,
   onLockChange,
@@ -53,11 +56,21 @@ function FirstPersonController({
   const jumpVelocity = settings.jumpVelocity
   const gravity = 12.5
   const wallRadius = 0.22
-  const doorway = {
-    width: 1.8,
-    height: 2.2,
-    outsideDepth: 1.6,
-  }
+
+  const doorByWall = useMemo(() => {
+    const map = {
+      north: null,
+      south: null,
+      east: null,
+      west: null,
+    }
+
+    for (const door of doors) {
+      map[door.wall] = door
+    }
+
+    return map
+  }, [doors])
 
   const furnitureColliders = useMemo(() => {
     return furniture.map((item) => {
@@ -101,24 +114,31 @@ function FirstPersonController({
   const collidesWithWalls = (x, z, y) => {
     const halfW = roomWidth / 2
     const halfD = roomDepth / 2
-    const doorwayHalf = doorway.width / 2
 
-    if (x <= -halfW + wallRadius || x >= halfW - wallRadius) {
-      return true
+    if (x <= -halfW + wallRadius) {
+      const door = doorByWall.west
+      if (!door || Math.abs(z - door.offset) > door.width / 2 - wallRadius * 0.35 || y > door.height) {
+        return true
+      }
     }
 
-    if (z >= halfD - wallRadius) {
-      return true
-    }
-
-    if (z <= -halfD - doorway.outsideDepth) {
-      return true
+    if (x >= halfW - wallRadius) {
+      const door = doorByWall.east
+      if (!door || Math.abs(z - door.offset) > door.width / 2 - wallRadius * 0.35 || y > door.height) {
+        return true
+      }
     }
 
     if (z <= -halfD + wallRadius) {
-      const insideDoorwayWidth = Math.abs(x) <= doorwayHalf - wallRadius * 0.35
-      const belowDoorLintel = y <= doorway.height
-      if (!(insideDoorwayWidth && belowDoorLintel)) {
+      const door = doorByWall.north
+      if (!door || Math.abs(x - door.offset) > door.width / 2 - wallRadius * 0.35 || y > door.height) {
+        return true
+      }
+    }
+
+    if (z >= halfD - wallRadius) {
+      const door = doorByWall.south
+      if (!door || Math.abs(x - door.offset) > door.width / 2 - wallRadius * 0.35 || y > door.height) {
         return true
       }
     }
@@ -246,6 +266,12 @@ export default function SceneViewport({ cameraMode, preset, onFirstPersonLockCha
   const room = useSceneStore((state) => state.room)
   const furniture = useSceneStore((state) => state.furniture)
   const firstPerson = useSceneStore((state) => state.firstPerson)
+  const floorPlan = useSceneStore((state) => state.floorPlan)
+
+  const selectedRoom = floorPlan.rooms.find((roomItem) => roomItem.id === floorPlan.selectedRoomId)
+  const selectedDoors = selectedRoom?.doors ?? []
+  const minDistance = Math.max(4, Math.max(room.width, room.depth) * 0.5)
+  const maxDistance = Math.max(12, Math.max(room.width, room.depth) * 1.8)
 
   return (
     <Canvas shadows camera={{ position: preset.position, fov: preset.fov }} dpr={[1, 2]}>
@@ -266,6 +292,7 @@ export default function SceneViewport({ cameraMode, preset, onFirstPersonLockCha
           roomWidth={room.width}
           roomDepth={room.depth}
           eyeHeight={preset.position[1]}
+          doors={selectedDoors}
           furniture={furniture}
           settings={firstPerson}
           onLockChange={onFirstPersonLockChange}
@@ -273,8 +300,8 @@ export default function SceneViewport({ cameraMode, preset, onFirstPersonLockCha
       ) : (
         <OrbitControls
           enablePan
-          minDistance={4}
-          maxDistance={12}
+          minDistance={minDistance}
+          maxDistance={maxDistance}
           maxPolarAngle={cameraMode === 'top' ? Math.PI / 2.01 : Math.PI / 2.02}
           target={preset.target}
         />
