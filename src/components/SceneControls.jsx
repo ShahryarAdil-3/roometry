@@ -38,7 +38,6 @@ export default function SceneControls({ onHide }) {
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const setLivePreview = useSceneStore((state) => state.setLivePreview)
   const setCanvasSettings = useSceneStore((state) => state.setCanvasSettings)
-  const setSnapSettings = useSceneStore((state) => state.setSnapSettings)
   const selectRoom = useSceneStore((state) => state.selectRoom)
   const moveRoom = useSceneStore((state) => state.moveRoom)
   const updateRoom = useSceneStore((state) => state.updateRoom)
@@ -80,8 +79,13 @@ export default function SceneControls({ onHide }) {
     depth: 14,
     pixelsPerMeter: 36,
   }
-  const snapEnabled = floorPlan.snapEnabled ?? true
-  const snapStep = floorPlan.snapStep ?? 0.1
+
+  const commitNumeric = (rawValue, callback) => {
+    const parsed = Number(rawValue)
+    if (Number.isFinite(parsed)) {
+      callback(parsed)
+    }
+  }
 
   const selectedFurniture = useMemo(
     () => furniture.find((item) => item.id === selectedFurnitureId),
@@ -144,6 +148,7 @@ export default function SceneControls({ onHide }) {
           className={floorPlan.uiMode === 'visualize' ? 'active' : ''}
           onClick={() => {
             applySelectedRoomToScene()
+            setCameraMode('orbit')
             setUiMode('visualize')
           }}
           disabled={!selectedRoom}
@@ -164,9 +169,15 @@ export default function SceneControls({ onHide }) {
               type="number"
               min="6"
               max="200"
-              step="0.5"
-              value={canvas.width}
-              onChange={(e) => setCanvasSettings({ width: Number(e.target.value) })}
+              step="1"
+              defaultValue={canvas.width}
+              key={`workspace-width-${canvas.width}`}
+              onBlur={(e) => commitNumeric(e.target.value, (value) => setCanvasSettings({ width: value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
             />
           </label>
           <label>
@@ -175,9 +186,15 @@ export default function SceneControls({ onHide }) {
               type="number"
               min="6"
               max="200"
-              step="0.5"
-              value={canvas.depth}
-              onChange={(e) => setCanvasSettings({ depth: Number(e.target.value) })}
+              step="1"
+              defaultValue={canvas.depth}
+              key={`workspace-depth-${canvas.depth}`}
+              onBlur={(e) => commitNumeric(e.target.value, (value) => setCanvasSettings({ depth: value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
             />
           </label>
           <label>
@@ -187,8 +204,18 @@ export default function SceneControls({ onHide }) {
               min="16"
               max="140"
               step="1"
-              value={canvas.pixelsPerMeter}
-              onChange={(e) => setCanvasSettings({ pixelsPerMeter: Number(e.target.value) })}
+              defaultValue={canvas.pixelsPerMeter}
+              key={`workspace-ppm-${canvas.pixelsPerMeter}`}
+              onBlur={(e) =>
+                commitNumeric(e.target.value, (value) =>
+                  setCanvasSettings({ pixelsPerMeter: value }),
+                )
+              }
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
             />
           </label>
         </div>
@@ -196,21 +223,22 @@ export default function SceneControls({ onHide }) {
         <label className="toggle">
           <input
             type="checkbox"
-            checked={snapEnabled}
-            onChange={(e) => setSnapSettings({ enabled: e.target.checked })}
+            checked
+            disabled
           />
-          Enable snap to grid
+          Snap to 1m x 1m grid (locked)
         </label>
 
         <label>
           Snap Step (m)
           <input
             type="number"
-            min="0.01"
+            min="1"
             max="1"
-            step="0.01"
-            value={snapStep}
-            onChange={(e) => setSnapSettings({ step: Number(e.target.value) })}
+            step="1"
+            value={1}
+            readOnly
+            disabled
           />
         </label>
 
@@ -254,7 +282,7 @@ export default function SceneControls({ onHide }) {
                 <input
                   type="number"
                   min="1"
-                  step="0.1"
+                  step="1"
                   value={selectedRoom.width}
                   onChange={(e) => setSelectedRoomDimensions({ width: Number(e.target.value) })}
                 />
@@ -264,7 +292,7 @@ export default function SceneControls({ onHide }) {
                 <input
                   type="number"
                   min="1"
-                  step="0.1"
+                  step="1"
                   value={selectedRoom.depth}
                   onChange={(e) => setSelectedRoomDimensions({ depth: Number(e.target.value) })}
                 />
@@ -286,7 +314,7 @@ export default function SceneControls({ onHide }) {
                 Origin X
                 <input
                   type="number"
-                  step="0.1"
+                  step="1"
                   value={selectedRoom.x}
                   onChange={(e) => updateRoom(selectedRoom.id, { x: Number(e.target.value) })}
                 />
@@ -295,7 +323,7 @@ export default function SceneControls({ onHide }) {
                 Origin Z
                 <input
                   type="number"
-                  step="0.1"
+                  step="1"
                   value={selectedRoom.z}
                   onChange={(e) => updateRoom(selectedRoom.id, { z: Number(e.target.value) })}
                 />
@@ -329,6 +357,7 @@ export default function SceneControls({ onHide }) {
                 type="button"
                 onClick={() => {
                   applySelectedRoomToScene()
+                  setCameraMode('orbit')
                   setUiMode('visualize')
                 }}
               >
@@ -343,22 +372,18 @@ export default function SceneControls({ onHide }) {
               <span>Move (Step)</span>
               <input
                 type="number"
-                min="0.01"
-                step="0.01"
-                value={snapEnabled ? snapStep : 0.5}
-                onChange={(e) =>
-                  setSnapSettings({
-                    enabled: true,
-                    step: Number(e.target.value),
-                  })
-                }
+                min="1"
+                step="1"
+                value={1}
+                readOnly
+                disabled
               />
-              <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x, selectedRoom.z - (snapEnabled ? Math.max(snapStep, 0.1) : 0.5))}>Up</button>
+              <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x, selectedRoom.z - 1)}>Up</button>
               <div className="nudge-row">
-                <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x - (snapEnabled ? Math.max(snapStep, 0.1) : 0.5), selectedRoom.z)}>Left</button>
-                <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x + (snapEnabled ? Math.max(snapStep, 0.1) : 0.5), selectedRoom.z)}>Right</button>
+                <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x - 1, selectedRoom.z)}>Left</button>
+                <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x + 1, selectedRoom.z)}>Right</button>
               </div>
-              <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x, selectedRoom.z + (snapEnabled ? Math.max(snapStep, 0.1) : 0.5))}>Down</button>
+              <button type="button" onClick={() => moveRoom(selectedRoom.id, selectedRoom.x, selectedRoom.z + 1)}>Down</button>
             </div>
           </>
         )}

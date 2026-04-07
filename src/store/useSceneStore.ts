@@ -149,15 +149,17 @@ const MIN_PIXELS_PER_METER = 16
 const MAX_PIXELS_PER_METER = 140
 const MIN_SNAP_STEP = 0.01
 const MAX_SNAP_STEP = 1
+const GRID_UNIT_METERS = 1
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const toFinite = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback)
 const clampFinite = (value: number, fallback: number, min: number, max: number) =>
   clamp(toFinite(value, fallback), min, max)
+const snapToGrid = (value: number) => Math.round(value / GRID_UNIT_METERS) * GRID_UNIT_METERS
 
 const sanitizeRoomDimensions = (room: Pick<FloorPlanRoom, 'width' | 'depth' | 'height'>) => ({
-  width: clampFinite(room.width, MIN_ROOM_WIDTH, MIN_ROOM_WIDTH, 1000),
-  depth: clampFinite(room.depth, MIN_ROOM_DEPTH, MIN_ROOM_DEPTH, 1000),
+  width: Math.max(MIN_ROOM_WIDTH, snapToGrid(clampFinite(room.width, MIN_ROOM_WIDTH, MIN_ROOM_WIDTH, 1000))),
+  depth: Math.max(MIN_ROOM_DEPTH, snapToGrid(clampFinite(room.depth, MIN_ROOM_DEPTH, MIN_ROOM_DEPTH, 1000))),
   height: clampFinite(room.height, MIN_ROOM_HEIGHT, MIN_ROOM_HEIGHT, 1000),
 })
 
@@ -556,8 +558,8 @@ const createInitialState = (
       const candidateRoom: FloorPlanRoom = {
         id: roomId,
         name,
-        x: room.x,
-        z: room.z,
+        x: snapToGrid(room.x),
+        z: snapToGrid(room.z),
         width: dimensions.width,
         depth: dimensions.depth,
         height: dimensions.height,
@@ -615,8 +617,8 @@ const createInitialState = (
       const nextRoom = clampRoomToCanvas(
         {
           ...currentRoom,
-          x: nextX,
-          z: nextZ,
+          x: snapToGrid(nextX),
+          z: snapToGrid(nextZ),
         },
         state.floorPlan.canvas,
       )
@@ -676,6 +678,8 @@ const createInitialState = (
       const dimensions = sanitizeRoomDimensions(merged)
       const roomBeforeClamp: FloorPlanRoom = {
         ...merged,
+        x: snapToGrid(merged.x),
+        z: snapToGrid(merged.z),
         width: dimensions.width,
         depth: dimensions.depth,
         height: dimensions.height,
@@ -883,6 +887,10 @@ export const useSceneStore = create<SceneState>()(
       const migratedRooms = state?.floorPlan?.rooms?.map((room, index) => ({
         ...room,
         name: room.name ?? `Room ${index + 1}`,
+        x: snapToGrid(room.x ?? 0),
+        z: snapToGrid(room.z ?? 0),
+        width: Math.max(MIN_ROOM_WIDTH, snapToGrid(room.width ?? MIN_ROOM_WIDTH)),
+        depth: Math.max(MIN_ROOM_DEPTH, snapToGrid(room.depth ?? MIN_ROOM_DEPTH)),
         wallThickness: Math.max(room.wallThickness ?? 0.12, 0.05),
         doors: Array.isArray(room.doors) ? room.doors : [],
       }))

@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PointerLockControls } from '@react-three/drei'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import Room from '../scenes/room'
 import { useSceneStore } from '../store/useSceneStore'
@@ -111,7 +111,7 @@ function FirstPersonController({
     }
   }, [camera, eyeHeight])
 
-  const collidesWithWalls = (x, z, y) => {
+  const collidesWithWalls = useCallback((x, z, y) => {
     const halfW = roomWidth / 2
     const halfD = roomDepth / 2
 
@@ -144,9 +144,9 @@ function FirstPersonController({
     }
 
     return false
-  }
+  }, [doorByWall, roomDepth, roomWidth])
 
-  const collidesWithFurniture = (x, z) => {
+  const collidesWithFurniture = useCallback((x, z) => {
     for (const box of furnitureColliders) {
       if (x > box.minX && x < box.maxX && z > box.minZ && z < box.maxZ) {
         return true
@@ -154,9 +154,65 @@ function FirstPersonController({
     }
 
     return false
-  }
+  }, [furnitureColliders])
+
+  const clampToInterior = useCallback((x, z) => {
+    const halfW = roomWidth / 2
+    const halfD = roomDepth / 2
+    const margin = wallRadius + 0.05
+
+    return {
+      x: THREE.MathUtils.clamp(x, -halfW + margin, halfW - margin),
+      z: THREE.MathUtils.clamp(z, -halfD + margin, halfD - margin),
+    }
+  }, [roomDepth, roomWidth])
+
+  const findNearestSafePoint = useCallback((x, z, y) => {
+    const clamped = clampToInterior(x, z)
+    if (!collidesWithWalls(clamped.x, clamped.z, y) && !collidesWithFurniture(clamped.x, clamped.z)) {
+      return clamped
+    }
+
+    const center = clampToInterior(0, 0)
+    if (!collidesWithWalls(center.x, center.z, y) && !collidesWithFurniture(center.x, center.z)) {
+      return center
+    }
+
+    const radii = [0.35, 0.6, 0.9, 1.2, 1.5]
+    for (const radius of radii) {
+      for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+        const candidate = clampToInterior(
+          center.x + Math.cos(angle) * radius,
+          center.z + Math.sin(angle) * radius,
+        )
+        if (
+          !collidesWithWalls(candidate.x, candidate.z, y) &&
+          !collidesWithFurniture(candidate.x, candidate.z)
+        ) {
+          return candidate
+        }
+      }
+    }
+
+    return center
+  }, [clampToInterior, collidesWithFurniture, collidesWithWalls])
+
+  useEffect(() => {
+    const y = Math.max(eyeHeight, camera.position.y)
+    const safe = findNearestSafePoint(camera.position.x, camera.position.z, y)
+    camera.position.set(safe.x, y, safe.z)
+  }, [camera, eyeHeight, findNearestSafePoint])
 
   useFrame((_, delta) => {
+    if (
+      collidesWithWalls(camera.position.x, camera.position.z, camera.position.y) ||
+      collidesWithFurniture(camera.position.x, camera.position.z)
+    ) {
+      const safe = findNearestSafePoint(camera.position.x, camera.position.z, camera.position.y)
+      camera.position.x = safe.x
+      camera.position.z = safe.z
+    }
+
     if (!isLockedRef.current) {
       return
     }
@@ -241,6 +297,15 @@ function FirstPersonController({
 
     if (isGroundedRef.current && bobTimeRef.current > 0) {
       camera.position.y += Math.sin(bobTimeRef.current) * settings.headBobIntensity
+    }
+
+    if (
+      collidesWithWalls(camera.position.x, camera.position.z, camera.position.y) ||
+      collidesWithFurniture(camera.position.x, camera.position.z)
+    ) {
+      const safe = findNearestSafePoint(camera.position.x, camera.position.z, camera.position.y)
+      camera.position.x = safe.x
+      camera.position.z = safe.z
     }
   })
 

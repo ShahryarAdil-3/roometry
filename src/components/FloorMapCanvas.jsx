@@ -3,21 +3,12 @@ import { useSceneStore } from '../store/useSceneStore'
 
 const MIN_DRAW_SIZE = 16
 const MIN_ROOM_SIZE = 1
-
-const RESIZE_HANDLES = [
-  'n',
-  's',
-  'e',
-  'w',
-  'ne',
-  'nw',
-  'se',
-  'sw',
-]
-
-const MIN_VIEW_ZOOM = 0.5
+const MIN_VIEW_ZOOM = 0.1
 const MAX_VIEW_ZOOM = 4
-const NATIVE_SCROLL_CONTENT_SIZE = 3200
+const RULER_GUTTER = 18
+const GRID_UNIT_METERS = 1
+
+const RESIZE_HANDLES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
 
 const toWorldFromScreen = (point, rect, pixelsPerMeter, view) => ({
   x: view.x + (point.x - rect.left - rect.width / 2) / (pixelsPerMeter * view.zoom),
@@ -43,6 +34,7 @@ export default function FloorMapCanvas() {
   const moveRoom = useSceneStore((state) => state.moveRoom)
   const updateRoom = useSceneStore((state) => state.updateRoom)
   const selectRoom = useSceneStore((state) => state.selectRoom)
+
   const selectedRoom = useMemo(
     () => floorPlan.rooms.find((room) => room.id === floorPlan.selectedRoomId) ?? null,
     [floorPlan.rooms, floorPlan.selectedRoomId],
@@ -53,11 +45,7 @@ export default function FloorMapCanvas() {
     depth: 14,
     pixelsPerMeter: 36,
   }
-  const snapEnabled = floorPlan.snapEnabled ?? true
-  const snapStep = floorPlan.snapStep ?? 0.1
-
   const canvasRef = useRef(null)
-  const nativeScrollRef = useRef(null)
   const [canvasRect, setCanvasRect] = useState(null)
   const [draftRect, setDraftRect] = useState(null)
   const [dragState, setDragState] = useState(null)
@@ -66,13 +54,10 @@ export default function FloorMapCanvas() {
   const [view, setView] = useState({ x: 0, z: 0, zoom: 1 })
 
   const pixelsPerMeter = canvas.pixelsPerMeter
-  const canvasAspectRatio = `${canvas.width} / ${canvas.depth}`
-  const snap = useCallback(
-    (value) => (snapEnabled ? roundToStep(value, snapStep) : value),
-    [snapEnabled, snapStep],
-  )
   const horizontalLimit = canvas.width / 2
   const verticalLimit = canvas.depth / 2
+
+  const snap = useCallback((value) => roundToStep(value, GRID_UNIT_METERS), [])
 
   const clampView = useCallback(
     (nextView) => ({
@@ -104,40 +89,9 @@ export default function FloorMapCanvas() {
     }
   }, [])
 
-  useEffect(() => {
-    const element = nativeScrollRef.current
-    if (!element) {
-      return
-    }
-
-    const centerLeft = (NATIVE_SCROLL_CONTENT_SIZE - element.clientWidth) / 2
-    const centerTop = (NATIVE_SCROLL_CONTENT_SIZE - element.clientHeight) / 2
-    const nextLeft = centerLeft + view.x * pixelsPerMeter * view.zoom
-    const nextTop = centerTop + view.z * pixelsPerMeter * view.zoom
-
-    if (Math.abs(element.scrollLeft - nextLeft) > 1) {
-      element.scrollLeft = nextLeft
-    }
-    if (Math.abs(element.scrollTop - nextTop) > 1) {
-      element.scrollTop = nextTop
-    }
-  }, [pixelsPerMeter, view.x, view.z, view.zoom])
-
-  const handleNativeScroll = (event) => {
-    const element = event.currentTarget
-    const centerLeft = (NATIVE_SCROLL_CONTENT_SIZE - element.clientWidth) / 2
-    const centerTop = (NATIVE_SCROLL_CONTENT_SIZE - element.clientHeight) / 2
-    const nextX = (element.scrollLeft - centerLeft) / (pixelsPerMeter * view.zoom)
-    const nextZ = (element.scrollTop - centerTop) / (pixelsPerMeter * view.zoom)
-
-    setView((current) =>
-      clampView({
-        ...current,
-        x: nextX,
-        z: nextZ,
-      }),
-    )
-  }
+  const endPan = useCallback(() => {
+    setPanState(null)
+  }, [])
 
   const beginDraw = (event) => {
     if (dragState || resizeState || panState) {
@@ -235,6 +189,7 @@ export default function FloorMapCanvas() {
     event.stopPropagation()
     event.preventDefault()
     event.currentTarget.setPointerCapture?.(event.pointerId)
+
     const worldPoint = toWorldFromScreen(
       {
         x: event.clientX,
@@ -285,10 +240,6 @@ export default function FloorMapCanvas() {
     setDragState(null)
     selectRoom(room.id)
   }
-
-  const endPan = useCallback(() => {
-    setPanState(null)
-  }, [])
 
   useEffect(() => {
     if (!dragState || !canvasRect) {
@@ -409,11 +360,13 @@ export default function FloorMapCanvas() {
     const onMove = (event) => {
       const dxPx = event.clientX - panState.startX
       const dzPx = event.clientY - panState.startY
-      setView(clampView({
-        ...panState.startView,
-        x: panState.startView.x - dxPx / (pixelsPerMeter * panState.startView.zoom),
-        z: panState.startView.z - dzPx / (pixelsPerMeter * panState.startView.zoom),
-      }))
+      setView(
+        clampView({
+          ...panState.startView,
+          x: panState.startView.x - dxPx / (pixelsPerMeter * panState.startView.zoom),
+          z: panState.startView.z - dzPx / (pixelsPerMeter * panState.startView.zoom),
+        }),
+      )
     }
 
     const onUp = () => {
@@ -442,24 +395,15 @@ export default function FloorMapCanvas() {
 
       let deltaX = 0
       let deltaZ = 0
-      const baseStep = snapEnabled ? Math.max(snapStep, 0.1) : 0.5
-      const step = event.shiftKey ? baseStep * 10 : baseStep
+      const step = event.shiftKey ? GRID_UNIT_METERS * 5 : GRID_UNIT_METERS
 
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') {
         deltaX = -step
-      } else if (event.key === 'ArrowRight') {
+      } else if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') {
         deltaX = step
-      } else if (event.key === 'ArrowUp') {
+      } else if (event.key === 'ArrowUp' || event.key.toLowerCase() === 'w') {
         deltaZ = -step
-      } else if (event.key === 'ArrowDown') {
-        deltaZ = step
-      } else if (event.key.toLowerCase() === 'a') {
-        deltaX = -step
-      } else if (event.key.toLowerCase() === 'd') {
-        deltaX = step
-      } else if (event.key.toLowerCase() === 'w') {
-        deltaZ = -step
-      } else if (event.key.toLowerCase() === 's') {
+      } else if (event.key === 'ArrowDown' || event.key.toLowerCase() === 's') {
         deltaZ = step
       } else {
         return
@@ -479,7 +423,7 @@ export default function FloorMapCanvas() {
     return () => {
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [floorPlan.rooms, floorPlan.selectedRoomId, moveRoom, snap, snapEnabled, snapStep])
+  }, [floorPlan.rooms, floorPlan.selectedRoomId, moveRoom, snap])
 
   const handleWheel = (event) => {
     if (!canvasRect) {
@@ -494,18 +438,83 @@ export default function FloorMapCanvas() {
       view,
     )
 
-    const zoomDelta = event.deltaY < 0 ? 1.12 : 0.9
-    const nextZoom = Math.max(MIN_VIEW_ZOOM, Math.min(MAX_VIEW_ZOOM, view.zoom * zoomDelta))
+    const zoomFactor = Math.exp(-event.deltaY * 0.0015)
+    const nextZoom = Math.max(MIN_VIEW_ZOOM, Math.min(MAX_VIEW_ZOOM, view.zoom * zoomFactor))
 
-    const relativeX = (event.clientX - canvasRect.left - canvasRect.width / 2) / (pixelsPerMeter * nextZoom)
-    const relativeZ = (event.clientY - canvasRect.top - canvasRect.height / 2) / (pixelsPerMeter * nextZoom)
+    const relativeX =
+      (event.clientX - canvasRect.left - canvasRect.width / 2) / (pixelsPerMeter * nextZoom)
+    const relativeZ =
+      (event.clientY - canvasRect.top - canvasRect.height / 2) / (pixelsPerMeter * nextZoom)
 
-    setView(clampView({
-      x: worldBefore.x - relativeX,
-      z: worldBefore.z - relativeZ,
-      zoom: nextZoom,
-    }))
+    setView(
+      clampView({
+        x: worldBefore.x - relativeX,
+        z: worldBefore.z - relativeZ,
+        zoom: nextZoom,
+      }),
+    )
   }
+
+  const rulerStep = GRID_UNIT_METERS
+
+  const gridOffsets = useMemo(() => {
+    const spacing = pixelsPerMeter * view.zoom
+    if (!canvasRect || !Number.isFinite(spacing) || spacing <= 0) {
+      return { x: 0, y: 0 }
+    }
+
+    const originX = canvasRect.width / 2 - view.x * spacing
+    const originY = canvasRect.height / 2 - view.z * spacing
+
+    return {
+      x: ((originX % spacing) + spacing) % spacing,
+      y: ((originY % spacing) + spacing) % spacing,
+    }
+  }, [canvasRect, pixelsPerMeter, view.x, view.z, view.zoom])
+
+  const xTicks = useMemo(() => {
+    if (!canvasRect) {
+      return []
+    }
+
+    const scale = pixelsPerMeter * view.zoom
+    const minVisible = view.x - canvasRect.width / (2 * scale)
+    const maxVisible = view.x + canvasRect.width / (2 * scale)
+    const start = Math.floor(minVisible / rulerStep) * rulerStep
+    const ticks = []
+    const majorStep = rulerStep * 5
+
+    for (let value = start; value <= maxVisible + rulerStep; value += rulerStep) {
+      const rounded = Number(value.toFixed(4))
+      const left = canvasRect.width / 2 + (rounded - view.x) * scale - RULER_GUTTER
+      const major = Math.abs(Math.round(rounded / majorStep) * majorStep - rounded) < 0.0001
+      ticks.push({ value: rounded, left, major })
+    }
+
+    return ticks
+  }, [canvasRect, pixelsPerMeter, rulerStep, view.x, view.zoom])
+
+  const zTicks = useMemo(() => {
+    if (!canvasRect) {
+      return []
+    }
+
+    const scale = pixelsPerMeter * view.zoom
+    const minVisible = view.z - canvasRect.height / (2 * scale)
+    const maxVisible = view.z + canvasRect.height / (2 * scale)
+    const start = Math.floor(minVisible / rulerStep) * rulerStep
+    const ticks = []
+    const majorStep = rulerStep * 5
+
+    for (let value = start; value <= maxVisible + rulerStep; value += rulerStep) {
+      const rounded = Number(value.toFixed(4))
+      const top = canvasRect.height / 2 + (rounded - view.z) * scale - RULER_GUTTER
+      const major = Math.abs(Math.round(rounded / majorStep) * majorStep - rounded) < 0.0001
+      ticks.push({ value: rounded, top, major })
+    }
+
+    return ticks
+  }, [canvasRect, pixelsPerMeter, rulerStep, view.z, view.zoom])
 
   return (
     <section className="floor-map-shell">
@@ -513,17 +522,11 @@ export default function FloorMapCanvas() {
         <h1>Floor Map</h1>
         <p>
           1 meter equals {pixelsPerMeter} pixels. Drag on empty space to draw, drag a room to move,
-          and collisions or boundary violations are blocked.
-          {` `}
-          {snapEnabled ? `Snapping: ${snapStep.toFixed(2)}m` : 'Snapping: off'}.
-          {` `}
-          Use arrows or WASD to nudge, hold Shift for bigger steps.
+          and collisions or boundary violations are blocked. Snapping is fixed to a 1m x 1m grid for
+          precise alignment. Use arrows or WASD to nudge, hold Shift for bigger steps.
         </p>
         <div className="floor-map-view-tools">
-          <button
-            type="button"
-            onClick={() => setView({ x: 0, z: 0, zoom: 1 })}
-          >
+          <button type="button" onClick={() => setView({ x: 0, z: 0, zoom: 1 })}>
             Reset View
           </button>
           <span>
@@ -532,106 +535,146 @@ export default function FloorMapCanvas() {
         </div>
       </header>
 
-      <div
-        ref={canvasRef}
-        className={`floor-map-canvas ${panState ? 'panning' : ''}`}
-        style={{
-          '--grid-size': `${pixelsPerMeter * view.zoom}px`,
-          aspectRatio: canvasAspectRatio,
-        }}
-        onPointerDown={beginDraw}
-        onPointerMove={updateDraw}
-        onPointerUp={endDraw}
-        onPointerLeave={() => {
-          endDraw()
-          endPan()
-        }}
-        onWheel={handleWheel}
-        onClick={() => selectRoom(null)}
-        onContextMenu={(event) => event.preventDefault()}
-        role="application"
-        aria-label="Floor map drawing canvas"
-      >
-        <div className="floor-map-grid" />
-
-        {floorPlan.rooms.map((room) => {
-          if (!canvasRect) {
-            return null
-          }
-
-          const topLeft = toScreenFromWorld({ x: room.x, z: room.z }, canvasRect, pixelsPerMeter, view)
-
-          return (
-            <button
-              key={room.id}
-              type="button"
-              className={`room-rect ${room.id === floorPlan.selectedRoomId ? 'selected' : ''}`}
-              style={{
-                left: `${topLeft.x}px`,
-                top: `${topLeft.y}px`,
-                width: `${room.width * pixelsPerMeter * view.zoom}px`,
-                height: `${room.depth * pixelsPerMeter * view.zoom}px`,
-              }}
-              onClick={(event) => {
-                event.stopPropagation()
-                selectRoom(room.id)
-              }}
-              onPointerDown={(event) => beginRoomDrag(event, room)}
-              title={`${room.name}: ${room.width.toFixed(1)}m x ${room.depth.toFixed(1)}m`}
-            >
-              <span>{room.name}</span>
-              <small>
-                {room.width.toFixed(1)}m x {room.depth.toFixed(1)}m
-              </small>
-
-              {room.id === floorPlan.selectedRoomId &&
-                RESIZE_HANDLES.map((handle) => (
-                  <i
-                    key={`${room.id}-${handle}`}
-                    className={`resize-handle resize-${handle}`}
-                    onPointerDown={(event) => beginRoomResize(event, room, handle)}
-                    aria-hidden="true"
-                  />
-                ))}
-            </button>
-          )
-        })}
-
-        {draftRect && (
-          <div
-            className="draft-rect"
-            style={{
-              left: `${Math.min(draftRect.start.x, draftRect.current.x) - draftRect.rect.left}px`,
-              top: `${Math.min(draftRect.start.y, draftRect.current.y) - draftRect.rect.top}px`,
-              width: `${Math.abs(draftRect.current.x - draftRect.start.x)}px`,
-              height: `${Math.abs(draftRect.current.y - draftRect.start.y)}px`,
-            }}
-          />
-        )}
-      </div>
-
-      <div className="floor-map-scrollbars" aria-label="Canvas navigation scrollbars">
-        <div className="floor-map-scrollbars-title">Scrollbars (native): drag bars to pan view</div>
+      <div className="floor-map-main">
         <div
-          ref={nativeScrollRef}
-          className="floor-map-native-scroll"
-          onScroll={handleNativeScroll}
-          role="region"
-          aria-label="Canvas native scroll region"
+          ref={canvasRef}
+          className={`floor-map-canvas ${panState ? 'panning' : ''}`}
+          style={{
+            '--grid-size': `${pixelsPerMeter * view.zoom}px`,
+            '--grid-offset-x': `${gridOffsets.x}px`,
+            '--grid-offset-y': `${gridOffsets.y}px`,
+          }}
+          onPointerDown={beginDraw}
+          onPointerMove={updateDraw}
+          onPointerUp={endDraw}
+          onPointerLeave={() => {
+            endDraw()
+            endPan()
+          }}
+          onWheel={handleWheel}
+          onClick={() => selectRoom(null)}
+          onContextMenu={(event) => event.preventDefault()}
+          role="application"
+          aria-label="Floor map drawing canvas"
         >
-          <div
-            className="floor-map-native-scroll-content"
-            style={{
-              width: `${NATIVE_SCROLL_CONTENT_SIZE}px`,
-              height: `${NATIVE_SCROLL_CONTENT_SIZE}px`,
-            }}
-          />
-        </div>
-      </div>
+          <div className="floor-map-grid" />
 
-      <div className="floor-map-footnote">
-        Canvas: {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
-        {floorPlan.constraintMessage ? ` | ${floorPlan.constraintMessage}` : ''}
+          <div className="floor-map-ruler floor-map-ruler-x" aria-hidden="true">
+            {xTicks.map((tick) => (
+              <span
+                key={`x-${tick.value}`}
+                className={tick.major ? 'major' : ''}
+                style={{ left: `${tick.left}px` }}
+              >
+                <i />
+                {tick.major ? <strong>{tick.value}m</strong> : null}
+              </span>
+            ))}
+          </div>
+
+          <div className="floor-map-ruler floor-map-ruler-z" aria-hidden="true">
+            {zTicks.map((tick) => (
+              <span
+                key={`z-${tick.value}`}
+                className={tick.major ? 'major' : ''}
+                style={{ top: `${tick.top}px` }}
+              >
+                <i />
+                {tick.major ? <strong>{tick.value}m</strong> : null}
+              </span>
+            ))}
+          </div>
+
+          {floorPlan.rooms.map((room) => {
+            if (!canvasRect) {
+              return null
+            }
+
+            const topLeft = toScreenFromWorld({ x: room.x, z: room.z }, canvasRect, pixelsPerMeter, view)
+
+            return (
+              <button
+                key={room.id}
+                type="button"
+                className={`room-rect ${room.id === floorPlan.selectedRoomId ? 'selected' : ''}`}
+                style={{
+                  left: `${topLeft.x}px`,
+                  top: `${topLeft.y}px`,
+                  width: `${room.width * pixelsPerMeter * view.zoom}px`,
+                  height: `${room.depth * pixelsPerMeter * view.zoom}px`,
+                }}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  selectRoom(room.id)
+                }}
+                onPointerDown={(event) => beginRoomDrag(event, room)}
+                title={`${room.name}: ${room.width.toFixed(1)}m x ${room.depth.toFixed(1)}m`}
+              >
+                <span>{room.name}</span>
+                <small>
+                  {room.width.toFixed(1)}m x {room.depth.toFixed(1)}m
+                </small>
+
+                {room.id === floorPlan.selectedRoomId &&
+                  RESIZE_HANDLES.map((handle) => (
+                    <i
+                      key={`${room.id}-${handle}`}
+                      className={`resize-handle resize-${handle}`}
+                      onPointerDown={(event) => beginRoomResize(event, room, handle)}
+                      aria-hidden="true"
+                    />
+                  ))}
+              </button>
+            )
+          })}
+
+          {draftRect && (
+            <div
+              className="draft-rect"
+              style={{
+                left: `${Math.min(draftRect.start.x, draftRect.current.x) - draftRect.rect.left}px`,
+                top: `${Math.min(draftRect.start.y, draftRect.current.y) - draftRect.rect.top}px`,
+                width: `${Math.abs(draftRect.current.x - draftRect.start.x)}px`,
+                height: `${Math.abs(draftRect.current.y - draftRect.start.y)}px`,
+              }}
+            />
+          )}
+        </div>
+
+        <div className="floor-map-scrollbars" aria-label="Canvas navigation scrollbars">
+          <div className="floor-map-scrollbars-title">Viewport scroll bars</div>
+          <label className="floor-map-bar">
+            <span>H</span>
+            <input
+              type="range"
+              min={-horizontalLimit}
+              max={horizontalLimit}
+              step="0.1"
+              value={view.x}
+              onChange={(event) =>
+                setView((current) => clampView({ ...current, x: Number(event.target.value) }))
+              }
+            />
+          </label>
+          <label className="floor-map-bar">
+            <span>V</span>
+            <input
+              type="range"
+              min={-verticalLimit}
+              max={verticalLimit}
+              step="0.1"
+              value={view.z}
+              onChange={(event) =>
+                setView((current) => clampView({ ...current, z: Number(event.target.value) }))
+              }
+            />
+          </label>
+        </div>
+
+        <div className="floor-map-footnote">
+          Canvas: {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
+          {floorPlan.constraintMessage ? ` | ${floorPlan.constraintMessage}` : ''}
+        </div>
       </div>
     </section>
   )
