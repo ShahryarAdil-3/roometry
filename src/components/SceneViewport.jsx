@@ -2,7 +2,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PointerLockControls } from '@react-three/drei'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import Room from '../scenes/room'
+import Room from '../scenes/Room'
 import { useSceneStore } from '../store/useSceneStore'
 
 /* eslint-disable react-hooks/immutability */
