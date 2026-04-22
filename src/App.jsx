@@ -1,9 +1,31 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSceneStore } from './store/useSceneStore'
 import SceneControls from './components/SceneControls'
 import SceneViewport from './components/SceneViewport'
 import FloorMapCanvas from './components/FloorMapCanvas'
+import { ControlIcon } from './components/ui/ControlIcons'
 import './App.css'
+
+const STYLE_VARIANTS = [
+  { id: 'minimal', label: 'Minimal', icon: 'theme-minimal' },
+  { id: 'futuristic', label: 'Futuristic', icon: 'theme-futuristic' },
+  { id: 'cad', label: 'CAD', icon: 'theme-cad' },
+]
+
+const STYLE_VARIANT_STORAGE_KEY = 'roometry-style-variant'
+
+const resolveInitialStyleVariant = () => {
+  if (typeof window === 'undefined') {
+    return 'futuristic'
+  }
+
+  const savedVariant = window.localStorage.getItem(STYLE_VARIANT_STORAGE_KEY)
+  if (savedVariant && STYLE_VARIANTS.some((variant) => variant.id === savedVariant)) {
+    return savedVariant
+  }
+
+  return 'futuristic'
+}
 
 function App() {
   const cameraMode = useSceneStore((state) => state.cameraMode)
@@ -39,9 +61,14 @@ function App() {
   }, [cameraMode, cameraPresets, room.depth, room.height, room.width, uiMode])
   const [showControls, setShowControls] = useState(true)
   const [isFirstPersonLocked, setIsFirstPersonLocked] = useState(false)
+  const [styleVariant, setStyleVariant] = useState(resolveInitialStyleVariant)
+
+  useEffect(() => {
+    window.localStorage.setItem(STYLE_VARIANT_STORAGE_KEY, styleVariant)
+  }, [styleVariant])
 
   return (
-    <div className="app">
+    <div className={`app app-${uiMode} app-style-${styleVariant}`}>
       {uiMode === 'draw' ? (
         <FloorMapCanvas />
       ) : (
@@ -70,8 +97,31 @@ function App() {
         className="toggle-controls-btn"
         onClick={() => setShowControls((value) => !value)}
       >
-        {showControls ? 'Hide Controls' : 'Show Controls'}
+        <span className="icon-label">
+          <ControlIcon name={showControls ? 'hide' : 'show'} size={14} />
+          {showControls ? 'Hide Controls' : 'Show Controls'}
+        </span>
       </button>
+
+      <div className="style-variant-dock" role="group" aria-label="Style variants">
+        <span className="style-variant-label">
+          <ControlIcon name="palette" size={13} />
+          Style
+        </span>
+        {STYLE_VARIANTS.map((variant) => (
+          <button
+            key={variant.id}
+            type="button"
+            className={`style-variant-btn ${styleVariant === variant.id ? 'active' : ''}`}
+            onClick={() => setStyleVariant(variant.id)}
+            title={`Switch to ${variant.label} theme`}
+            aria-label={`Switch to ${variant.label} theme`}
+          >
+            <ControlIcon name={variant.icon} size={13} />
+            {variant.label}
+          </button>
+        ))}
+      </div>
 
       {showControls && <SceneControls onHide={() => setShowControls(false)} />}
     </div>

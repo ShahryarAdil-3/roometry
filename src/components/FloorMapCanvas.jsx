@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSceneStore } from '../store/useSceneStore'
+import { ControlIcon } from './ui/ControlIcons'
 
 const MIN_DRAW_SIZE = 16
 const MIN_ROOM_SIZE = 1
@@ -34,6 +35,9 @@ export default function FloorMapCanvas() {
   const moveRoom = useSceneStore((state) => state.moveRoom)
   const updateRoom = useSceneStore((state) => state.updateRoom)
   const selectRoom = useSceneStore((state) => state.selectRoom)
+  const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
+  const setUiMode = useSceneStore((state) => state.setUiMode)
+  const setCameraMode = useSceneStore((state) => state.setCameraMode)
 
   const selectedRoom = useMemo(
     () => floorPlan.rooms.find((room) => room.id === floorPlan.selectedRoomId) ?? null,
@@ -52,10 +56,13 @@ export default function FloorMapCanvas() {
   const [resizeState, setResizeState] = useState(null)
   const [panState, setPanState] = useState(null)
   const [view, setView] = useState({ x: 0, z: 0, zoom: 1 })
+  const [showTopChrome, setShowTopChrome] = useState(true)
+  const [showBottomChrome, setShowBottomChrome] = useState(true)
 
   const pixelsPerMeter = canvas.pixelsPerMeter
   const horizontalLimit = canvas.width / 2
   const verticalLimit = canvas.depth / 2
+  const canvasFocusMode = !showTopChrome && !showBottomChrome
 
   const snap = useCallback((value) => roundToStep(value, GRID_UNIT_METERS), [])
 
@@ -455,6 +462,52 @@ export default function FloorMapCanvas() {
     )
   }
 
+  const toggleCanvasFocus = () => {
+    if (canvasFocusMode) {
+      setShowTopChrome(true)
+      setShowBottomChrome(true)
+      return
+    }
+
+    setShowTopChrome(false)
+    setShowBottomChrome(false)
+  }
+
+  const zoomBy = (factor) => {
+    setView((current) =>
+      clampView({
+        ...current,
+        zoom: current.zoom * factor,
+      }),
+    )
+  }
+
+  const centerSelectedRoom = () => {
+    if (!selectedRoom) {
+      return
+    }
+
+    const roomCenterX = selectedRoom.x + selectedRoom.width / 2
+    const roomCenterZ = selectedRoom.z + selectedRoom.depth / 2
+    setView((current) =>
+      clampView({
+        ...current,
+        x: roomCenterX,
+        z: roomCenterZ,
+      }),
+    )
+  }
+
+  const quickVisualize = () => {
+    if (!selectedRoom) {
+      return
+    }
+
+    applySelectedRoomToScene()
+    setCameraMode('orbit')
+    setUiMode('visualize')
+  }
+
   const rulerStep = GRID_UNIT_METERS
 
   const gridOffsets = useMemo(() => {
@@ -517,25 +570,50 @@ export default function FloorMapCanvas() {
   }, [canvasRect, pixelsPerMeter, rulerStep, view.z, view.zoom])
 
   return (
-    <section className="floor-map-shell">
-      <header className="floor-map-header">
-        <h1>Floor Map</h1>
-        <p>
-          1 meter equals {pixelsPerMeter} pixels. Drag on empty space to draw, drag a room to move,
-          and collisions or boundary violations are blocked. Snapping is fixed to a 1m x 1m grid for
-          precise alignment. Use arrows or WASD to nudge, hold Shift for bigger steps.
-        </p>
-        <div className="floor-map-view-tools">
-          <button type="button" onClick={() => setView({ x: 0, z: 0, zoom: 1 })}>
-            Reset View
-          </button>
-          <span>
-            Zoom: {view.zoom.toFixed(2)}x | Pan: {view.x.toFixed(1)}m, {view.z.toFixed(1)}m
-          </span>
-        </div>
-      </header>
+    <section className={`floor-map-shell ${showTopChrome ? '' : 'floor-map-shell-top-hidden'}`}>
+      {showTopChrome && (
+        <header className="floor-map-header">
+          <h1 className="floor-map-title">
+            <span className="icon-badge">
+              <ControlIcon name="map" size={16} />
+            </span>
+            Floor Planner
+          </h1>
+          <p className="floor-map-description">
+            1 meter equals {pixelsPerMeter} pixels. Drag on empty space to draw, drag a room to move,
+            and collisions or boundary violations are blocked. Snapping is fixed to a 1m x 1m grid for
+            precise alignment. Use arrows or WASD to nudge, hold Shift for bigger steps.
+          </p>
 
-      <div className="floor-map-main">
+          <div className="planner-pill-row">
+            <span className="planner-pill">
+              <ControlIcon name="workspace" size={14} />
+              1m Grid Locked
+            </span>
+            <span className="planner-pill">
+              <ControlIcon name="pan" size={14} />
+              Shift + Drag to Pan
+            </span>
+            <span className="planner-pill">
+              <ControlIcon name="zoom" size={14} />
+              Wheel to Zoom
+            </span>
+          </div>
+
+          <div className="floor-map-view-tools">
+            <button type="button" onClick={() => setView({ x: 0, z: 0, zoom: 1 })}>
+              <ControlIcon name="reset" size={14} />
+              Reset View
+            </button>
+            <span className="floor-map-readout">
+              <ControlIcon name="zoom" size={13} />
+              Zoom: {view.zoom.toFixed(2)}x | Pan: {view.x.toFixed(1)}m, {view.z.toFixed(1)}m
+            </span>
+          </div>
+        </header>
+      )}
+
+      <div className={`floor-map-main ${showBottomChrome ? '' : 'floor-map-main-bottom-hidden'}`}>
         <div
           ref={canvasRef}
           className={`floor-map-canvas ${panState ? 'panning' : ''}`}
@@ -557,6 +635,116 @@ export default function FloorMapCanvas() {
           role="application"
           aria-label="Floor map drawing canvas"
         >
+          <div
+            className="floor-map-canvas-toolbar"
+            role="toolbar"
+            aria-label="Canvas visibility controls"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={`canvas-tool-btn ${showTopChrome ? '' : 'active'}`}
+              onClick={() => setShowTopChrome((value) => !value)}
+              title={showTopChrome ? 'Hide top panel' : 'Show top panel'}
+              aria-label={showTopChrome ? 'Hide top panel' : 'Show top panel'}
+            >
+              <ControlIcon name={showTopChrome ? 'collapse-top' : 'expand-top'} size={14} />
+            </button>
+
+            <button
+              type="button"
+              className={`canvas-tool-btn ${showBottomChrome ? '' : 'active'}`}
+              onClick={() => setShowBottomChrome((value) => !value)}
+              title={showBottomChrome ? 'Hide bottom panel' : 'Show bottom panel'}
+              aria-label={showBottomChrome ? 'Hide bottom panel' : 'Show bottom panel'}
+            >
+              <ControlIcon name={showBottomChrome ? 'collapse-bottom' : 'expand-bottom'} size={14} />
+            </button>
+
+            <button
+              type="button"
+              className={`canvas-tool-btn ${canvasFocusMode ? 'active' : ''}`}
+              onClick={toggleCanvasFocus}
+              title={canvasFocusMode ? 'Restore all planner panels' : 'Focus canvas only'}
+              aria-label={canvasFocusMode ? 'Restore all planner panels' : 'Focus canvas only'}
+            >
+              <ControlIcon name={canvasFocusMode ? 'focus-off' : 'focus-on'} size={14} />
+            </button>
+          </div>
+
+          {canvasFocusMode && (
+            <div
+              className="floor-map-focus-controls"
+              role="toolbar"
+              aria-label="Canvas focus quick actions"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="focus-action-btn"
+                onClick={() => zoomBy(1.2)}
+                title="Zoom in"
+                aria-label="Zoom in"
+              >
+                <ControlIcon name="zoom-in" size={14} />
+              </button>
+
+              <button
+                type="button"
+                className="focus-action-btn"
+                onClick={() => zoomBy(0.84)}
+                title="Zoom out"
+                aria-label="Zoom out"
+              >
+                <ControlIcon name="zoom-out" size={14} />
+              </button>
+
+              <button
+                type="button"
+                className="focus-action-btn"
+                onClick={() => setView({ x: 0, z: 0, zoom: 1 })}
+                title="Reset view"
+                aria-label="Reset view"
+              >
+                <ControlIcon name="reset" size={14} />
+              </button>
+
+              <button
+                type="button"
+                className="focus-action-btn"
+                onClick={centerSelectedRoom}
+                title="Center selected room"
+                aria-label="Center selected room"
+                disabled={!selectedRoom}
+              >
+                <ControlIcon name="rooms" size={14} />
+              </button>
+
+              <button
+                type="button"
+                className="focus-action-btn"
+                onClick={quickVisualize}
+                title="Visualize selected room"
+                aria-label="Visualize selected room"
+                disabled={!selectedRoom}
+              >
+                <ControlIcon name="visualize" size={14} />
+              </button>
+
+              <button
+                type="button"
+                className="focus-action-btn active"
+                onClick={toggleCanvasFocus}
+                title="Restore hidden panels"
+                aria-label="Restore hidden panels"
+              >
+                <ControlIcon name="focus-off" size={14} />
+              </button>
+            </div>
+          )}
+
           <div className="floor-map-grid" />
 
           <div className="floor-map-ruler floor-map-ruler-x" aria-hidden="true">
@@ -641,40 +829,47 @@ export default function FloorMapCanvas() {
           )}
         </div>
 
-        <div className="floor-map-scrollbars" aria-label="Canvas navigation scrollbars">
-          <div className="floor-map-scrollbars-title">Viewport scroll bars</div>
-          <label className="floor-map-bar">
-            <span>H</span>
-            <input
-              type="range"
-              min={-horizontalLimit}
-              max={horizontalLimit}
-              step="0.1"
-              value={view.x}
-              onChange={(event) =>
-                setView((current) => clampView({ ...current, x: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label className="floor-map-bar">
-            <span>V</span>
-            <input
-              type="range"
-              min={-verticalLimit}
-              max={verticalLimit}
-              step="0.1"
-              value={view.z}
-              onChange={(event) =>
-                setView((current) => clampView({ ...current, z: Number(event.target.value) }))
-              }
-            />
-          </label>
-        </div>
+        {showBottomChrome && (
+          <>
+            <div className="floor-map-scrollbars" aria-label="Canvas navigation scrollbars">
+              <div className="floor-map-scrollbars-title">
+                <ControlIcon name="pan" size={13} />
+                Viewport scroll bars
+              </div>
+              <label className="floor-map-bar">
+                <span>H</span>
+                <input
+                  type="range"
+                  min={-horizontalLimit}
+                  max={horizontalLimit}
+                  step="0.1"
+                  value={view.x}
+                  onChange={(event) =>
+                    setView((current) => clampView({ ...current, x: Number(event.target.value) }))
+                  }
+                />
+              </label>
+              <label className="floor-map-bar">
+                <span>V</span>
+                <input
+                  type="range"
+                  min={-verticalLimit}
+                  max={verticalLimit}
+                  step="0.1"
+                  value={view.z}
+                  onChange={(event) =>
+                    setView((current) => clampView({ ...current, z: Number(event.target.value) }))
+                  }
+                />
+              </label>
+            </div>
 
-        <div className="floor-map-footnote">
-          Canvas: {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
-          {floorPlan.constraintMessage ? ` | ${floorPlan.constraintMessage}` : ''}
-        </div>
+            <div className="floor-map-footnote">
+              Canvas: {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
+              {floorPlan.constraintMessage ? ` | ${floorPlan.constraintMessage}` : ''}
+            </div>
+          </>
+        )}
       </div>
     </section>
   )
