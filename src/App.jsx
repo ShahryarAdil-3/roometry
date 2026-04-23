@@ -68,62 +68,70 @@ function App() {
   }, [styleVariant])
 
   return (
-    <div className={`app app-${uiMode} app-style-${styleVariant}`}>
-      {uiMode === 'draw' ? (
-        <FloorMapCanvas />
-      ) : (
-        <SceneViewport
-          cameraMode={cameraMode}
-          preset={activePreset}
-          onFirstPersonLockChange={setIsFirstPersonLocked}
-        />
-      )}
-
-      {uiMode === 'visualize' && cameraMode === 'firstPerson' && (
-        <>
-          {isFirstPersonLocked ? (
-            <div className="crosshair" aria-hidden="true" />
-          ) : (
-            <div className="fp-help">
-              Click inside the 3D scene to enter first-person mode. Press Esc to
-              release cursor.
-            </div>
-          )}
-        </>
-      )}
-
-      <button
-        type="button"
-        className="toggle-controls-btn"
-        onClick={() => setShowControls((value) => !value)}
-      >
-        <span className="icon-label">
-          <ControlIcon name={showControls ? 'hide' : 'show'} size={14} />
-          {showControls ? 'Hide Controls' : 'Show Controls'}
-        </span>
-      </button>
-
-      <div className="style-variant-dock" role="group" aria-label="Style variants">
-        <span className="style-variant-label">
-          <ControlIcon name="palette" size={13} />
-          Style
-        </span>
-        {STYLE_VARIANTS.map((variant) => (
-          <button
-            key={variant.id}
-            type="button"
-            className={`style-variant-btn ${styleVariant === variant.id ? 'active' : ''}`}
-            onClick={() => setStyleVariant(variant.id)}
-            title={`Switch to ${variant.label} theme`}
-            aria-label={`Switch to ${variant.label} theme`}
-          >
-            <ControlIcon name={variant.icon} size={13} />
-            {variant.label}
-          </button>
-        ))}
+    <div className={`app app-${uiMode} app-style-${styleVariant} ${showControls ? 'controls-open' : 'controls-closed'}`}>
+      <div className={`app-sidebar ${showControls ? 'open' : ''}`}>
+        {showControls && <SceneControls onHide={() => setShowControls(false)} />}
       </div>
 
-      {showControls && <SceneControls onHide={() => setShowControls(false)} />}
+      <div className="app-main">
+        <div className="app-topbar">
+          <button
+            type="button"
+            className="toggle-controls-btn"
+            onClick={() => setShowControls((value) => !value)}
+          >
+            <span className="icon-label">
+              <ControlIcon name={showControls ? 'hide' : 'show'} size={14} />
+              {showControls ? 'Hide' : 'Controls'}
+            </span>
+          </button>
+
+          <div className="style-variant-dock" role="group" aria-label="Style variants">
+            <span className="style-variant-label">
+              <ControlIcon name="palette" size={13} />
+              Style
+            </span>
+            {STYLE_VARIANTS.map((variant) => (
+              <button
+                key={variant.id}
+                type="button"
+                className={`style-variant-btn ${styleVariant === variant.id ? 'active' : ''}`}
+                onClick={() => setStyleVariant(variant.id)}
+                title={`Switch to ${variant.label} theme`}
+                aria-label={`Switch to ${variant.label} theme`}
+              >
+                <ControlIcon name={variant.icon} size={13} />
+                {variant.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="app-canvas-container">
+          {uiMode === 'draw' ? (
+            <FloorMapCanvas />
+          ) : (
+            <SceneViewport
+              cameraMode={cameraMode}
+              preset={activePreset}
+              onFirstPersonLockChange={setIsFirstPersonLocked}
+            />
+          )}
+
+          {uiMode === 'visualize' && cameraMode === 'firstPerson' && (
+            <>
+              {isFirstPersonLocked ? (
+                <div className="crosshair" aria-hidden="true" />
+              ) : (
+                <div className="fp-help">
+                  Click inside the 3D scene to enter first-person mode. Press Esc to
+                  release cursor.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

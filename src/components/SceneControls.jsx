@@ -250,7 +250,7 @@ export default function SceneControls({ onHide }) {
             >
               <div className="inline-row inline-row-3">
                 <label>
-                  Width (m)
+                  Width(m)
                   <input
                     type="number"
                     min="6"
@@ -269,7 +269,7 @@ export default function SceneControls({ onHide }) {
                   />
                 </label>
                 <label>
-                  Depth (m)
+                  Depth(m)
                   <input
                     type="number"
                     min="6"

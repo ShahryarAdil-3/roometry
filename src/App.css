@@ -1,11 +1,58 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 .app {
   position: relative;
-  width: 100%;
+  width: 100vw;
   height: 100svh;
   overflow: hidden;
   font-family: 'Outfit', 'Segoe UI', sans-serif;
+  display: flex;
+  flex-direction: row;
+}
+
+.app-sidebar {
+  flex-shrink: 0;
+  width: 0;
+  transition: width 300ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+  opacity: 0;
+}
+
+.app-sidebar.open {
+  width: min(350px, 100vw);
+  opacity: 1;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+  height: 100%;
+}
+
+.app-topbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 40;
+}
+
+.app-canvas-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
 .app-draw {
@@ -35,9 +82,7 @@
 }
 
 .toggle-controls-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  position: relative;
   z-index: 40;
   padding: 9px 12px;
   border-radius: 12px;
@@ -55,9 +100,7 @@
 }
 
 .style-variant-dock {
-  position: absolute;
-  top: 62px;
-  right: 16px;
+  position: relative;
   z-index: 39;
   display: inline-flex;
   align-items: center;
@@ -150,20 +193,16 @@
 }
 
 .scene-controls {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 30;
-  width: min(330px, calc(100vw - 28px));
-  max-height: calc(100svh - 32px);
+  position: relative;
+  width: 100%;
+  height: 100svh;
   overflow: auto;
-  padding: 14px;
-  border-radius: 18px;
+  padding: 16px 20px;
   background: linear-gradient(162deg, rgba(13, 28, 39, 0.92), rgba(22, 32, 45, 0.9));
   color: #ecf3f8;
   backdrop-filter: blur(16px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.32);
-  border: 1px solid rgba(172, 213, 236, 0.18);
+  border-right: 1px solid rgba(172, 213, 236, 0.18);
+  box-shadow: 8px 0 30px rgba(0, 0, 0, 0.15);
   animation: panel-enter 360ms ease;
 }
 
@@ -286,6 +325,7 @@
 .scene-controls .control-group {
   display: block;
   margin-bottom: 9px;
+  min-width: 0;
 }
 
 .scene-controls p {
@@ -307,6 +347,7 @@
 .scene-controls input[type='number'],
 .scene-controls button {
   width: 100%;
+  min-width: 0;
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid rgba(203, 230, 246, 0.22);
@@ -646,56 +687,6 @@
   gap: 5px;
 }
 
-.floor-map-scrollbars {
-  display: grid;
-  gap: 6px;
-  width: 100%;
-  max-width: 100%;
-  justify-self: stretch;
-  z-index: 4;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(118, 164, 194, 0.25);
-  background: rgba(255, 255, 255, 0.56);
-}
-
-.floor-map-scrollbars-title {
-  font-size: 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #1f3f54;
-}
-
-.floor-map-bar {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: #2b5068;
-}
-
-.floor-map-bar input[type='range'] {
-  width: 100%;
-}
-
-.floor-map-bar input[type='range']::-webkit-slider-runnable-track {
-  height: 8px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgba(147, 178, 201, 0.45), rgba(74, 121, 154, 0.65));
-}
-
-.floor-map-bar input[type='range']::-webkit-slider-thumb {
-  appearance: none;
-  margin-top: -3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1px solid rgba(20, 53, 75, 0.5);
-  background: #ffffff;
-}
-
 .floor-map-canvas {
   position: relative;
   border-radius: 16px;
@@ -714,9 +705,9 @@
 
 .floor-map-canvas-toolbar {
   position: absolute;
-  top: 12px;
+  top: 72px; /* Avoid app-topbar overlapping */
   right: 12px;
-  z-index: 7;
+  z-index: 10;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1039,17 +1030,14 @@
 }
 
 .inline-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.inline-row.inline-row-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.inline-row.inline-row-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.inline-row > * {
+  flex: 1 1 80px;
+  min-width: 0;
 }
 
 .floor-map-footnote {
@@ -1126,7 +1114,6 @@
 }
 
 .app-style-minimal .floor-map-header,
-.app-style-minimal .floor-map-scrollbars,
 .app-style-minimal .floor-map-canvas-toolbar,
 .app-style-minimal .floor-map-focus-controls {
   background: rgba(255, 255, 255, 0.9);
@@ -1195,7 +1182,6 @@
 }
 
 .app-style-futuristic .floor-map-header,
-.app-style-futuristic .floor-map-scrollbars,
 .app-style-futuristic .floor-map-canvas-toolbar,
 .app-style-futuristic .floor-map-focus-controls {
   background: rgba(14, 35, 50, 0.72);
@@ -1205,8 +1191,6 @@
 .app-style-futuristic .floor-map-title,
 .app-style-futuristic .floor-map-header p,
 .app-style-futuristic .floor-map-readout,
-.app-style-futuristic .floor-map-scrollbars-title,
-.app-style-futuristic .floor-map-bar,
 .app-style-futuristic .floor-map-footnote {
   color: #d9f2ff;
 }
@@ -1275,7 +1259,6 @@
 }
 
 .app-style-cad .floor-map-header,
-.app-style-cad .floor-map-scrollbars,
 .app-style-cad .floor-map-canvas-toolbar,
 .app-style-cad .floor-map-focus-controls {
   border-radius: 9px;
@@ -1303,6 +1286,43 @@
 }
 
 @media (max-width: 720px) {
+  .app {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    height: 0;
+    width: 100vw !important;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+  }
+
+  .app-sidebar.open {
+    height: 60svh;
+  }
+
+  .app-main {
+    height: 100svh;
+  }
+
+  .scene-controls {
+    height: 100%;
+    border-right: none;
+    border-top: 1px solid rgba(172, 213, 236, 0.18);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  .app-topbar {
+    top: 12px;
+    right: 12px;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
   .floor-map-shell {
     padding: 12px;
   }
@@ -1311,23 +1331,7 @@
     font-size: 22px;
   }
 
-  .scene-controls {
-    top: auto;
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-height: 62svh;
-  }
-
-  .toggle-controls-btn {
-    top: 12px;
-    right: 12px;
-  }
-
   .style-variant-dock {
-    top: 56px;
-    right: 12px;
     max-width: calc(100vw - 24px);
     overflow-x: auto;
     padding: 5px;

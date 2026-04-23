@@ -4,7 +4,7 @@ import { ControlIcon } from './ui/ControlIcons'
 
 const MIN_DRAW_SIZE = 16
 const MIN_ROOM_SIZE = 1
-const MIN_VIEW_ZOOM = 0.1
+const MIN_VIEW_ZOOM = 0
 const MAX_VIEW_ZOOM = 4
 const RULER_GUTTER = 18
 const GRID_UNIT_METERS = 1
@@ -831,39 +831,6 @@ export default function FloorMapCanvas() {
 
         {showBottomChrome && (
           <>
-            <div className="floor-map-scrollbars" aria-label="Canvas navigation scrollbars">
-              <div className="floor-map-scrollbars-title">
-                <ControlIcon name="pan" size={13} />
-                Viewport scroll bars
-              </div>
-              <label className="floor-map-bar">
-                <span>H</span>
-                <input
-                  type="range"
-                  min={-horizontalLimit}
-                  max={horizontalLimit}
-                  step="0.1"
-                  value={view.x}
-                  onChange={(event) =>
-                    setView((current) => clampView({ ...current, x: Number(event.target.value) }))
-                  }
-                />
-              </label>
-              <label className="floor-map-bar">
-                <span>V</span>
-                <input
-                  type="range"
-                  min={-verticalLimit}
-                  max={verticalLimit}
-                  step="0.1"
-                  value={view.z}
-                  onChange={(event) =>
-                    setView((current) => clampView({ ...current, z: Number(event.target.value) }))
-                  }
-                />
-              </label>
-            </div>
-
             <div className="floor-map-footnote">
               Canvas: {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
               {floorPlan.constraintMessage ? ` | ${floorPlan.constraintMessage}` : ''}
