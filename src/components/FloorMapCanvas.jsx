@@ -29,7 +29,7 @@ const roundToStep = (value, step) => {
   return Math.round(value / step) * step
 }
 
-export default function FloorMapCanvas() {
+export default function FloorMapCanvas({ isTouchDevice = false }) {
   const floorPlan = useSceneStore((state) => state.floorPlan)
   const createRoom = useSceneStore((state) => state.createRoom)
   const moveRoom = useSceneStore((state) => state.moveRoom)
@@ -482,6 +482,20 @@ export default function FloorMapCanvas() {
     )
   }
 
+  const panBy = (dx, dz) => {
+    setView((current) =>
+      clampView({
+        ...current,
+        x: current.x + dx,
+        z: current.z + dz,
+      }),
+    )
+  }
+
+  const resetView = () => {
+    setView({ x: 0, z: 0, zoom: 1 })
+  }
+
   const centerSelectedRoom = () => {
     if (!selectedRoom) {
       return
@@ -741,6 +755,46 @@ export default function FloorMapCanvas() {
                 aria-label="Restore hidden panels"
               >
                 <ControlIcon name="focus-off" size={14} />
+              </button>
+            </div>
+          )}
+
+          {isTouchDevice && (
+            <div
+              className="floor-map-mobile-controls"
+              role="toolbar"
+              aria-label="Mobile planner controls"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button type="button" onClick={() => panBy(0, -1)} aria-label="Pan up">
+                Up
+              </button>
+              <button type="button" onClick={() => panBy(-1, 0)} aria-label="Pan left">
+                Left
+              </button>
+              <button type="button" onClick={resetView} aria-label="Reset view">
+                Reset
+              </button>
+              <button type="button" onClick={() => panBy(1, 0)} aria-label="Pan right">
+                Right
+              </button>
+              <button type="button" onClick={() => panBy(0, 1)} aria-label="Pan down">
+                Down
+              </button>
+              <button type="button" onClick={() => zoomBy(1.2)} aria-label="Zoom in">
+                +
+              </button>
+              <button type="button" onClick={() => zoomBy(0.84)} aria-label="Zoom out">
+                -
+              </button>
+              <button
+                type="button"
+                onClick={quickVisualize}
+                disabled={!selectedRoom}
+                aria-label="Visualize selected room"
+              >
+                3D
               </button>
             </div>
           )}

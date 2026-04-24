@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSceneStore } from '../store/useSceneStore'
 import { ControlIcon } from './ui/ControlIcons'
 
@@ -94,6 +94,13 @@ export default function SceneControls({ onHide }) {
   const [doorOffset, setDoorOffset] = useState(0)
   const [doorWidth, setDoorWidth] = useState(1)
   const [doorHeight, setDoorHeight] = useState(2.1)
+  const [isTouchDevice, setIsTouchDevice] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false
+    }
+
+    return window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 820
+  })
 
   const selectedRoom = useMemo(
     () => floorPlan.rooms.find((room) => room.id === floorPlan.selectedRoomId) ?? null,
@@ -148,6 +155,33 @@ export default function SceneControls({ onHide }) {
   }
 
   const currentWallDoor = selectedRoom?.doors.find((door) => door.wall === doorWall)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)')
+
+    const syncTouchMode = () => {
+      setIsTouchDevice(mediaQuery.matches || window.innerWidth <= 820)
+    }
+
+    syncTouchMode()
+    mediaQuery.addEventListener('change', syncTouchMode)
+    window.addEventListener('resize', syncTouchMode)
+
+    return () => {
+      mediaQuery.removeEventListener('change', syncTouchMode)
+      window.removeEventListener('resize', syncTouchMode)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isTouchDevice && cameraMode === 'firstPerson') {
+      setCameraMode('orbit')
+    }
+  }, [cameraMode, isTouchDevice, setCameraMode])
 
   return (
     <aside className="scene-controls">
@@ -606,9 +640,13 @@ export default function SceneControls({ onHide }) {
                 <select value={cameraMode} onChange={(e) => setCameraMode(e.target.value)}>
                   <option value="orbit">Orbit</option>
                   <option value="top">Top</option>
-                  <option value="firstPerson">First Person</option>
+                  {!isTouchDevice && <option value="firstPerson">First Person</option>}
                 </select>
               </label>
+
+              {isTouchDevice && (
+                <p className="subtle-note">First-person mode is desktop-only. Use Orbit or Top camera on mobile.</p>
+              )}
 
               {cameraMode === 'firstPerson' && (
                 <div className="control-group no-margin">

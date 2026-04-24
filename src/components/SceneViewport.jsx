@@ -1,5 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, PointerLockControls } from '@react-three/drei'
+import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import Room from '../scenes/Room'
@@ -327,7 +328,7 @@ function FirstPersonController({
   )
 }
 
-export default function SceneViewport({ cameraMode, preset, onFirstPersonLockChange }) {
+export default function SceneViewport({ cameraMode, preset, onFirstPersonLockChange, isTouchDevice = false }) {
   const room = useSceneStore((state) => state.room)
   const furniture = useSceneStore((state) => state.furniture)
   const firstPerson = useSceneStore((state) => state.firstPerson)
@@ -337,22 +338,29 @@ export default function SceneViewport({ cameraMode, preset, onFirstPersonLockCha
   const selectedDoors = selectedRoom?.doors ?? []
   const minDistance = Math.max(4, Math.max(room.width, room.depth) * 0.5)
   const maxDistance = Math.max(12, Math.max(room.width, room.depth) * 1.8)
+  const useFirstPerson = cameraMode === 'firstPerson' && !isTouchDevice
+  const resolvedCameraMode = useFirstPerson ? cameraMode : cameraMode === 'firstPerson' ? 'orbit' : cameraMode
 
   return (
     <Canvas shadows camera={{ position: preset.position, fov: preset.fov }} dpr={[1, 2]}>
       <CameraSync preset={preset} />
-      <color attach="background" args={['#c6d3dd']} />
-      <hemisphereLight intensity={0.45} groundColor="#99856e" />
+      <color attach="background" args={['#a9bfce']} />
+      <fog attach="fog" args={['#a9bfce', 8, 32]} />
+      <hemisphereLight intensity={0.52} groundColor="#6f6f7a" color="#e4f4ff" />
+      <ambientLight intensity={0.18} color="#d9ecff" />
       <directionalLight
         castShadow
-        position={[5, 8, 4]}
-        intensity={1.1}
+        position={[6, 9, 5]}
+        intensity={1.25}
+        color="#fff2d9"
         shadow-mapSize={[2048, 2048]}
       />
+      <directionalLight position={[-5, 4, -6]} intensity={0.45} color="#9edfff" />
+      <spotLight position={[0, room.height + 2.5, 0]} angle={0.55} intensity={0.38} color="#a9efff" />
 
       <Room />
 
-      {cameraMode === 'firstPerson' ? (
+      {useFirstPerson ? (
         <FirstPersonController
           roomWidth={room.width}
           roomDepth={room.depth}
@@ -365,12 +373,26 @@ export default function SceneViewport({ cameraMode, preset, onFirstPersonLockCha
       ) : (
         <OrbitControls
           enablePan
+          enableDamping
+          dampingFactor={0.08}
+          rotateSpeed={isTouchDevice ? 0.75 : 1}
+          zoomSpeed={0.85}
+          panSpeed={0.7}
           minDistance={minDistance}
           maxDistance={maxDistance}
-          maxPolarAngle={cameraMode === 'top' ? Math.PI / 2.01 : Math.PI / 2.02}
+          maxPolarAngle={resolvedCameraMode === 'top' ? Math.PI / 2.01 : Math.PI / 2.02}
           target={preset.target}
+          touches={{
+            ONE: THREE.TOUCH.ROTATE,
+            TWO: THREE.TOUCH.DOLLY_PAN,
+          }}
         />
       )}
+
+      <EffectComposer>
+        <Bloom intensity={0.35} luminanceThreshold={0.7} mipmapBlur />
+        <Vignette eskil={false} offset={0.19} darkness={0.56} />
+      </EffectComposer>
     </Canvas>
   )
 }

@@ -43,9 +43,74 @@
   top: 16px;
   right: 16px;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
   z-index: 40;
+}
+
+.app-primary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-action-btn {
+  width: auto !important;
+  padding: 9px 12px !important;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: linear-gradient(165deg, rgba(18, 29, 40, 0.88), rgba(16, 23, 33, 0.88));
+  color: #f5f7fa;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.editor-action-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(177, 222, 247, 0.62);
+  background: linear-gradient(165deg, rgba(23, 41, 56, 0.92), rgba(20, 29, 40, 0.9));
+}
+
+.editor-action-btn.save-btn {
+  border-color: rgba(155, 233, 204, 0.45);
+}
+
+.editor-action-btn.save-btn.saved {
+  border-color: rgba(214, 255, 182, 0.8);
+  background: linear-gradient(165deg, rgba(90, 166, 117, 0.74), rgba(60, 117, 81, 0.76));
+}
+
+.editor-action-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+  transform: none;
+}
+
+.editor-status-badge {
+  position: absolute;
+  top: 66px;
+  right: 16px;
+  z-index: 39;
+  max-width: min(420px, calc(100vw - 28px));
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(160, 221, 255, 0.36);
+  background: rgba(12, 32, 46, 0.85);
+  color: #e1f4ff;
+  font-size: 12px;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+}
+
+.editor-status-badge.error {
+  border-color: rgba(255, 171, 171, 0.58);
+  background: rgba(84, 24, 26, 0.86);
+  color: #ffd8d8;
+}
+
+.mobile-editor-quickbar {
+  display: none;
 }
 
 .app-canvas-container {
@@ -701,6 +766,7 @@
   justify-self: stretch;
   box-shadow: 0 16px 28px rgba(67, 99, 124, 0.2);
   transition: box-shadow 200ms ease, transform 200ms ease;
+  touch-action: none;
 }
 
 .floor-map-canvas-toolbar {
@@ -731,6 +797,38 @@
   border: 1px solid rgba(79, 128, 160, 0.3);
   background: rgba(255, 255, 255, 0.84);
   box-shadow: 0 12px 24px rgba(56, 86, 108, 0.24);
+}
+
+.floor-map-mobile-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 9;
+  display: none;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  width: min(380px, calc(100% - 20px));
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(79, 128, 160, 0.3);
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 24px rgba(56, 86, 108, 0.24);
+}
+
+.floor-map-mobile-controls button {
+  margin: 0 !important;
+  width: 100% !important;
+  padding: 7px 8px !important;
+  font-size: 11px;
+  border-radius: 8px !important;
+  border: 1px solid rgba(93, 145, 180, 0.28) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #184966;
+}
+
+.floor-map-mobile-controls button:disabled {
+  opacity: 0.5;
 }
 
 .canvas-tool-btn {
@@ -1067,10 +1165,23 @@
 }
 
 .app-style-minimal .toggle-controls-btn,
+.app-style-minimal .editor-action-btn,
 .app-style-minimal .style-variant-dock {
   border-color: rgba(146, 170, 186, 0.34);
   background: rgba(255, 255, 255, 0.9);
   color: #20313f;
+}
+
+.app-style-minimal .editor-status-badge {
+  background: rgba(245, 251, 255, 0.94);
+  border-color: rgba(149, 190, 214, 0.42);
+  color: #2a4b60;
+}
+
+.app-style-minimal .editor-status-badge.error {
+  background: rgba(255, 233, 233, 0.96);
+  border-color: rgba(226, 123, 123, 0.46);
+  color: #7a2f2f;
 }
 
 .app-style-minimal .style-variant-label {
@@ -1140,6 +1251,7 @@
 }
 
 .app-style-futuristic .toggle-controls-btn,
+.app-style-futuristic .editor-action-btn,
 .app-style-futuristic .style-variant-dock {
   border-color: rgba(88, 212, 255, 0.38);
   background: rgba(9, 20, 30, 0.84);
@@ -1222,11 +1334,16 @@
 }
 
 .app-style-cad .toggle-controls-btn,
+.app-style-cad .editor-action-btn,
 .app-style-cad .style-variant-dock {
   border-radius: 9px;
   border-color: rgba(129, 173, 199, 0.44);
   background: rgba(242, 249, 255, 0.92);
   color: #1f3f55;
+}
+
+.mobile-help {
+  bottom: 76px;
 }
 
 .app-style-cad .style-variant-label {
@@ -1317,10 +1434,71 @@
 
   .app-topbar {
     top: 12px;
+    left: 12px;
     right: 12px;
-    flex-direction: column;
-    align-items: flex-end;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
+  }
+
+  .app-primary-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .editor-action-btn {
+    padding: 7px 9px !important;
+    font-size: 12px;
+  }
+
+  .editor-status-badge {
+    top: 56px;
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+
+  .mobile-editor-quickbar {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 96px;
+    z-index: 38;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 7px;
+    border-radius: 12px;
+    border: 1px solid rgba(190, 225, 244, 0.24);
+    background: rgba(17, 29, 40, 0.78);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  }
+
+  .mobile-editor-quickbar button {
+    width: auto !important;
+    margin: 0 !important;
+    padding: 6px 10px !important;
+    border-radius: 9px !important;
+    border: 1px solid rgba(169, 205, 226, 0.2) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    color: #e4f2fa;
+    font-size: 11px;
+  }
+
+  .mobile-editor-quickbar button.active {
+    border-color: rgba(255, 223, 166, 0.7) !important;
+    background: linear-gradient(160deg, rgba(255, 210, 138, 0.3), rgba(255, 182, 100, 0.2)) !important;
+  }
+
+  .mobile-editor-quickbar button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .toggle-controls-btn {
+    margin-left: auto;
   }
 
   .floor-map-shell {
@@ -1332,6 +1510,9 @@
   }
 
   .style-variant-dock {
+    width: 100%;
+    order: 4;
+    justify-content: flex-start;
     max-width: calc(100vw - 24px);
     overflow-x: auto;
     padding: 5px;
@@ -1352,5 +1533,13 @@
     justify-content: center;
     flex-wrap: wrap;
     border-radius: 12px;
+  }
+
+  .floor-map-mobile-controls {
+    display: grid;
+  }
+
+  .floor-map-canvas-toolbar {
+    top: 132px;
   }
 }
