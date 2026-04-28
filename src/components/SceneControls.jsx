@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSceneStore } from '../store/useSceneStore'
 import { ControlIcon } from './ui/ControlIcons'
 
@@ -22,6 +22,24 @@ const sampleFurnitureTemplates = [
     scale: [2, 0.9, 1],
     position: [1.8, 0.45, 1.3],
     color: '#7a8a99',
+  },
+  {
+    type: 'bed',
+    scale: [2.2, 0.55, 1.5],
+    position: [0.8, 0.28, -1.8],
+    color: '#7688a1',
+  },
+  {
+    type: 'desk',
+    scale: [1.4, 0.75, 0.7],
+    position: [-1.9, 0.37, 1.5],
+    color: '#7a5a44',
+  },
+  {
+    type: 'cabinet',
+    scale: [0.9, 1.6, 0.6],
+    position: [2.1, 0.8, -0.3],
+    color: '#5f7182',
   },
 ]
 
@@ -63,6 +81,7 @@ export default function SceneControls({ onHide }) {
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const setLivePreview = useSceneStore((state) => state.setLivePreview)
   const setCanvasSettings = useSceneStore((state) => state.setCanvasSettings)
+  const setSnapSettings = useSceneStore((state) => state.setSnapSettings)
   const selectRoom = useSceneStore((state) => state.selectRoom)
   const moveRoom = useSceneStore((state) => state.moveRoom)
   const updateRoom = useSceneStore((state) => state.updateRoom)
@@ -94,13 +113,8 @@ export default function SceneControls({ onHide }) {
   const [doorOffset, setDoorOffset] = useState(0)
   const [doorWidth, setDoorWidth] = useState(1)
   const [doorHeight, setDoorHeight] = useState(2.1)
-  const [isTouchDevice, setIsTouchDevice] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false
-    }
-
-    return window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 820
-  })
+  const furnitureConstraintAlertRef = useRef('')
+  const furnitureIdCounterRef = useRef(1)
 
   const selectedRoom = useMemo(
     () => floorPlan.rooms.find((room) => room.id === floorPlan.selectedRoomId) ?? null,
@@ -121,20 +135,28 @@ export default function SceneControls({ onHide }) {
   }
 
   const selectedFurniture = useMemo(
-    () => furniture.find((item) => item.id === selectedFurnitureId),
-    [furniture, selectedFurnitureId],
+    () => furniture.find((item) => item.id === selectedFurnitureId && item.roomId === selectedRoom?.id),
+    [furniture, selectedFurnitureId, selectedRoom?.id],
   )
 
-  const nextTemplate = useMemo(
-    () => sampleFurnitureTemplates[furniture.length % sampleFurnitureTemplates.length],
-    [furniture.length],
+  const roomFurniture = useMemo(
+    () => furniture.filter((item) => item.roomId === selectedRoom?.id),
+    [furniture, selectedRoom?.id],
   )
 
-  const handleAddFurniture = () => {
-    const template = sampleFurnitureTemplates[furniture.length % sampleFurnitureTemplates.length]
+  const handleAddFurniture = (template) => {
+    if (!selectedRoom) {
+      window.alert('Select a room before adding furniture.')
+      return
+    }
+
+    const sequence = Math.max(furnitureIdCounterRef.current, furniture.length + 1)
+    furnitureIdCounterRef.current = sequence + 1
+
     addFurniture({
-      id: `furniture-${Date.now()}`,
+      id: `furniture-${sequence}`,
       type: template.type,
+      roomId: selectedRoom.id,
       position: template.position,
       rotation: [0, 0, 0],
       scale: template.scale,
@@ -157,31 +179,33 @@ export default function SceneControls({ onHide }) {
   const currentWallDoor = selectedRoom?.doors.find((door) => door.wall === doorWall)
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined
+    if (!selectedRoom || !selectedFurnitureId) {
+      return
     }
 
-    const mediaQuery = window.matchMedia('(pointer: coarse)')
-
-    const syncTouchMode = () => {
-      setIsTouchDevice(mediaQuery.matches || window.innerWidth <= 820)
+    const stillExists = furniture.some(
+      (item) => item.id === selectedFurnitureId && item.roomId === selectedRoom.id,
+    )
+    if (!stillExists) {
+      // Defer state update to avoid synchronous state change inside effect
+      // which can trigger the react-hooks/set-state-in-effect rule.
+      setTimeout(() => setSelectedFurnitureId(''), 0)
     }
-
-    syncTouchMode()
-    mediaQuery.addEventListener('change', syncTouchMode)
-    window.addEventListener('resize', syncTouchMode)
-
-    return () => {
-      mediaQuery.removeEventListener('change', syncTouchMode)
-      window.removeEventListener('resize', syncTouchMode)
-    }
-  }, [])
+  }, [furniture, selectedFurnitureId, selectedRoom])
 
   useEffect(() => {
-    if (isTouchDevice && cameraMode === 'firstPerson') {
-      setCameraMode('orbit')
+    const message = floorPlan.constraintMessage
+    if (!message || !message.toLowerCase().includes('furniture')) {
+      return
     }
-  }, [cameraMode, isTouchDevice, setCameraMode])
+
+    if (furnitureConstraintAlertRef.current === message) {
+      return
+    }
+
+    furnitureConstraintAlertRef.current = message
+    window.alert(message)
+  }, [floorPlan.constraintMessage])
 
   return (
     <aside className="scene-controls">
@@ -347,15 +371,39 @@ export default function SceneControls({ onHide }) {
               <p className="subtle-note">
                 <span className="icon-label">
                   <ControlIcon name="pan" size={14} />
-                  Move canvas: Shift + drag or middle/right drag
+                  Move canvas: drag with 2 fingers on mobile, Shift + drag on desktop
                 </span>
               </p>
               <p className="subtle-note">
                 <span className="icon-label">
                   <ControlIcon name="zoom" size={14} />
-                  Zoom: mouse wheel
+                  Zoom: pinch on mobile, mouse wheel on desktop
                 </span>
               </p>
+
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={floorPlan.snapEnabled}
+                  onChange={(e) => setSnapSettings({ enabled: e.target.checked })}
+                />
+                <span className="icon-label">
+                  <ControlIcon name="workspace" size={14} />
+                  Enable snapping
+                </span>
+              </label>
+
+              <label>
+                Snap Step (m)
+                <input
+                  type="number"
+                  min="0.05"
+                  max="1"
+                  step="0.05"
+                  value={floorPlan.snapStep}
+                  onChange={(e) => setSnapSettings({ step: Number(e.target.value) })}
+                />
+              </label>
             </ControlSection>
 
             <ControlSection title="Rooms" icon="rooms" defaultOpen>
@@ -640,13 +688,9 @@ export default function SceneControls({ onHide }) {
                 <select value={cameraMode} onChange={(e) => setCameraMode(e.target.value)}>
                   <option value="orbit">Orbit</option>
                   <option value="top">Top</option>
-                  {!isTouchDevice && <option value="firstPerson">First Person</option>}
+                  <option value="firstPerson">First Person</option>
                 </select>
               </label>
-
-              {isTouchDevice && (
-                <p className="subtle-note">First-person mode is desktop-only. Use Orbit or Top camera on mobile.</p>
-              )}
 
               {cameraMode === 'firstPerson' && (
                 <div className="control-group no-margin">
@@ -748,6 +792,30 @@ export default function SceneControls({ onHide }) {
               </label>
 
               <label>
+                Floor Roughness ({floor.roughness.toFixed(2)})
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={floor.roughness}
+                  onChange={(e) => setFloorMaterial({ roughness: Number(e.target.value) })}
+                />
+              </label>
+
+              <label>
+                Floor Metalness ({floor.metalness.toFixed(2)})
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={floor.metalness}
+                  onChange={(e) => setFloorMaterial({ metalness: Number(e.target.value) })}
+                />
+              </label>
+
+              <label>
                 Floor Texture URL
                 <input
                   type="text"
@@ -763,6 +831,30 @@ export default function SceneControls({ onHide }) {
                   type="color"
                   value={ceiling.color}
                   onChange={(e) => setCeilingMaterial({ color: e.target.value })}
+                />
+              </label>
+
+              <label>
+                Ceiling Roughness ({ceiling.roughness.toFixed(2)})
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={ceiling.roughness}
+                  onChange={(e) => setCeilingMaterial({ roughness: Number(e.target.value) })}
+                />
+              </label>
+
+              <label>
+                Ceiling Metalness ({ceiling.metalness.toFixed(2)})
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={ceiling.metalness}
+                  onChange={(e) => setCeilingMaterial({ metalness: Number(e.target.value) })}
                 />
               </label>
 
@@ -793,15 +885,48 @@ export default function SceneControls({ onHide }) {
                         setWall(wallKey, { textureUrl: e.target.value.trim() || undefined })
                       }
                     />
+                    <label>
+                      Roughness
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={walls[wallKey].roughness}
+                        onChange={(e) => setWall(wallKey, { roughness: Number(e.target.value) })}
+                      />
+                    </label>
+                    <label>
+                      Metalness
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={walls[wallKey].metalness}
+                        onChange={(e) => setWall(wallKey, { metalness: Number(e.target.value) })}
+                      />
+                    </label>
                   </div>
                 ))}
               </div>
             </ControlSection>
 
             <ControlSection title="Furniture" icon="furniture">
-              <button type="button" onClick={handleAddFurniture}>
-                Add {nextTemplate.type}
-              </button>
+              <p className="subtle-note">Choose what to place in the currently selected room.</p>
+              <div className="room-chip-grid">
+                {sampleFurnitureTemplates.map((template) => (
+                  <button
+                    key={template.type}
+                    type="button"
+                    className="room-chip"
+                    onClick={() => handleAddFurniture(template)}
+                    disabled={!selectedRoom}
+                  >
+                    Add {template.type}
+                  </button>
+                ))}
+              </div>
 
               <label>
                 Selected
@@ -810,7 +935,7 @@ export default function SceneControls({ onHide }) {
                   onChange={(e) => setSelectedFurnitureId(e.target.value)}
                 >
                   <option value="">None</option>
-                  {furniture.map((item) => (
+                  {roomFurniture.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.type} ({item.id.slice(-4)})
                     </option>
@@ -896,7 +1021,7 @@ export default function SceneControls({ onHide }) {
               )}
 
               <ul className="furniture-list compact-list">
-                {furniture.map((item) => (
+                {roomFurniture.map((item) => (
                   <li key={item.id}>
                     <span>{item.type}</span>
                     <button type="button" onClick={() => removeFurniture(item.id)}>

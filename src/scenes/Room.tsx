@@ -35,6 +35,7 @@ interface RoomProps {
 	wallColor?: string
 	wallTexture?: string
 	ceilingColor?: string
+	onFurniturePointerDown?: (furnitureId: string) => void
 }
 
 const prepareTexture = (texture: THREE.Texture | null, repeat: [number, number]) => {
@@ -171,6 +172,7 @@ export default function Room({
 	wallColor,
 	wallTexture,
 	ceilingColor,
+	onFurniturePointerDown,
 }: RoomProps) {
 	const room = useSceneStore((state) => state.room)
 	const floor = useSceneStore((state) => state.floor)
@@ -189,6 +191,7 @@ export default function Room({
 	const resolvedWallTexture = wallTexture ?? walls.north.textureUrl
 	const selectedRoom = floorPlan.rooms.find((roomItem) => roomItem.id === floorPlan.selectedRoomId)
 	const doors = selectedRoom?.doors ?? []
+	const roomFurniture = furniture.filter((item) => item.roomId === selectedRoom?.id)
 	const getDoor = (wall: WallKey) => doors.find((door) => door.wall === wall)
 
 	return (
@@ -254,7 +257,7 @@ export default function Room({
 				/>
 			)}
 
-			{furniture.map((item) => (
+			{roomFurniture.map((item) => (
 				<mesh
 					key={item.id}
 					position={item.position}
@@ -262,6 +265,10 @@ export default function Room({
 					scale={item.scale}
 					castShadow
 					receiveShadow
+					onPointerDown={(event) => {
+						event.stopPropagation()
+						onFurniturePointerDown?.(item.id)
+					}}
 				>
 					<boxGeometry args={[1, 1, 1]} />
 					<meshStandardMaterial

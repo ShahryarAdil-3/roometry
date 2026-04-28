@@ -64,7 +64,14 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
   const verticalLimit = canvas.depth / 2
   const canvasFocusMode = !showTopChrome && !showBottomChrome
 
-  const snap = useCallback((value) => roundToStep(value, GRID_UNIT_METERS), [])
+  const activeSnapStep = floorPlan.snapEnabled
+    ? Math.max(0.01, Math.min(1, floorPlan.snapStep || GRID_UNIT_METERS))
+    : 0
+
+  const snap = useCallback(
+    (value) => (floorPlan.snapEnabled ? roundToStep(value, activeSnapStep) : value),
+    [activeSnapStep, floorPlan.snapEnabled],
+  )
 
   const clampView = useCallback(
     (nextView) => ({
@@ -602,7 +609,7 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
           <div className="planner-pill-row">
             <span className="planner-pill">
               <ControlIcon name="workspace" size={14} />
-              1m Grid Locked
+              {floorPlan.snapEnabled ? `Snap ${activeSnapStep.toFixed(2)}m` : 'Snap Off'}
             </span>
             <span className="planner-pill">
               <ControlIcon name="pan" size={14} />

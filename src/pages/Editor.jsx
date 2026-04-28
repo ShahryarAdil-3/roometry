@@ -149,10 +149,17 @@ function App() {
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
+  const setCanvasSettings = useSceneStore((state) => state.setCanvasSettings)
+  const resetScene = useSceneStore((state) => state.resetScene)
 
   const queryProjectId = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return params.get('id')
+  }, [location.search])
+
+  const queryIsNewProject = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('new') === '1'
   }, [location.search])
 
   const activePreset = useMemo(() => {
@@ -193,16 +200,26 @@ function App() {
   const [saveMessage, setSaveMessage] = useState('')
   const [projectName, setProjectName] = useState('Untitled Project')
   const [isTouchDevice, setIsTouchDevice] = useState(detectTouchDevice)
-  const [isGuestMode] = useState(() => {
+  const [guestModePreference] = useState(() => {
     if (typeof window === 'undefined') {
       return false
     }
 
     return window.localStorage.getItem(GUEST_MODE_STORAGE_KEY) === 'true'
   })
+  const [isProjectSetupOpen, setIsProjectSetupOpen] = useState(false)
+  const [projectSetup, setProjectSetup] = useState(() => ({
+    name: 'Untitled Project',
+    width: 18,
+    depth: 14,
+    pixelsPerMeter: 36,
+  }))
+
+  const isGuestMode = guestModePreference && !authUser
 
   const statusClearTimeoutRef = useRef(null)
   const loadedProjectRef = useRef('')
+  const newProjectFlowRef = useRef('')
 
   const setTransientStatus = (nextState, message, duration = 3000) => {
     setSaveState(nextState)
@@ -283,11 +300,31 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (isTouchDevice && cameraMode === 'firstPerson') {
-      setCameraMode('orbit')
-      setIsFirstPersonLocked(false)
+    if (!queryIsNewProject) {
+      newProjectFlowRef.current = ''
+      return
     }
-  }, [cameraMode, isTouchDevice, setCameraMode])
+
+    const flowKey = `${location.pathname}${location.search}`
+    if (newProjectFlowRef.current === flowKey) {
+      return
+    }
+
+    newProjectFlowRef.current = flowKey
+    resetScene()
+    loadedProjectRef.current = ''
+    setActiveProjectId(null)
+    setProjectName('Untitled Project')
+
+    const freshCanvas = useSceneStore.getState().floorPlan.canvas
+    setProjectSetup({
+      name: 'Untitled Project',
+      width: freshCanvas.width,
+      depth: freshCanvas.depth,
+      pixelsPerMeter: freshCanvas.pixelsPerMeter,
+    })
+    setIsProjectSetupOpen(true)
+  }, [location.pathname, location.search, queryIsNewProject, resetScene])
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -454,6 +491,26 @@ function App() {
     navigate('/dashboard')
   }
 
+  const handleProjectSetupSubmit = (event) => {
+    event.preventDefault()
+
+    const nextName = (projectSetup.name || 'Untitled Project').trim() || 'Untitled Project'
+    const width = Number(projectSetup.width)
+    const depth = Number(projectSetup.depth)
+    const pixelsPerMeter = Number(projectSetup.pixelsPerMeter)
+
+    setProjectName(nextName)
+    setCanvasSettings({
+      width,
+      depth,
+      pixelsPerMeter,
+    })
+
+    setIsProjectSetupOpen(false)
+    navigate('/app', { replace: true })
+    setTransientStatus('success', 'New canvas created. Save to keep this project.', 2500)
+  }
+
   return (
     <div className={`app app-${uiMode} app-style-${styleVariant} ${showControls ? 'controls-open' : 'controls-closed'}`}>
       <div className={`app-sidebar ${showControls ? 'open' : ''}`}>
@@ -557,6 +614,14 @@ function App() {
                 >
                   Top
                 </button>
+                <button
+                  type="button"
+                  className={cameraMode === 'firstPerson' ? 'active' : ''}
+                  onClick={() => setCameraMode('firstPerson')}
+                  disabled={!floorPlan.rooms.length}
+                >
+                  FP
+                </button>
               </>
             )}
           </div>
@@ -589,10 +654,75 @@ function App() {
 
           {uiMode === 'visualize' && isTouchDevice && (
             <div className="fp-help mobile-help">
-              Touch: drag to rotate, pinch to zoom, two-finger drag to pan.
+              {cameraMode === 'firstPerson'
+                ? 'Use joystick to move and swipe on right side to look around.'
+                : 'Touch: drag to rotate, pinch to zoom, two-finger drag to pan.'}
             </div>
           )}
         </div>
+
+        {isProjectSetupOpen && (
+          <div className="project-setup-overlay" role="dialog" aria-modal="true" aria-label="New project setup">
+            <form className="project-setup-card" onSubmit={handleProjectSetupSubmit}>
+              <h3>Start New Project</h3>
+              <p>Set your project name and initial canvas size before you begin.</p>
+
+              <label>
+                Project Name
+                <input
+                  type="text"
+                  value={projectSetup.name}
+                  onChange={(e) => setProjectSetup((current) => ({ ...current, name: e.target.value }))}
+                  placeholder="My Project"
+                  required
+                />
+              </label>
+
+              <div className="project-setup-grid">
+                <label>
+                  Canvas Width (m)
+                  <input
+                    type="number"
+                    min="6"
+                    max="200"
+                    step="1"
+                    value={projectSetup.width}
+                    onChange={(e) => setProjectSetup((current) => ({ ...current, width: Number(e.target.value) }))}
+                    required
+                  />
+                </label>
+                <label>
+                  Canvas Depth (m)
+                  <input
+                    type="number"
+                    min="6"
+                    max="200"
+                    step="1"
+                    value={projectSetup.depth}
+                    onChange={(e) => setProjectSetup((current) => ({ ...current, depth: Number(e.target.value) }))}
+                    required
+                  />
+                </label>
+                <label>
+                  Pixels / Meter
+                  <input
+                    type="number"
+                    min="16"
+                    max="140"
+                    step="1"
+                    value={projectSetup.pixelsPerMeter}
+                    onChange={(e) =>
+                      setProjectSetup((current) => ({ ...current, pixelsPerMeter: Number(e.target.value) }))
+                    }
+                    required
+                  />
+                </label>
+              </div>
+
+              <button type="submit" className="project-setup-submit">Create Canvas</button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   )

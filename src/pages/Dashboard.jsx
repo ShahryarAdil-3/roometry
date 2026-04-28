@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { collection, deleteDoc, doc, getDocs, orderBy, query, where } from 'firebase/firestore'
-import { Clock, Cuboid, LayoutGrid, LogOut, Plus, Trash2, Wand2 } from 'lucide-react'
+import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore'
+import { Clock, Cuboid, LayoutGrid, LogOut, Pencil, Plus, Trash2, Wand2 } from 'lucide-react'
 import { auth, db } from '../firebase/firebase'
 
 const formatCreatedAt = (value) => {
@@ -29,68 +29,71 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isGuestMode, setIsGuestMode] = useState(false)
   const [profileLabel, setProfileLabel] = useState('')
+  const [editingRoom, setEditingRoom] = useState(null)
+  const [editDraft, setEditDraft] = useState({
+    name: '',
+    width: 18,
+    depth: 14,
+    pixelsPerMeter: 36,
+  })
 
   useEffect(() => {
     const guestEnabled = window.localStorage.getItem('roometry_guest_mode') === 'true'
 
-    if (guestEnabled) {
-      setIsGuestMode(true)
-      setProfileLabel('Guest mode')
-
-      try {
-        const storedRooms = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
-        setRooms(Array.isArray(storedRooms) ? storedRooms : [])
-      } catch {
-        setRooms([])
-      } finally {
-        setLoading(false)
-      }
-
-      return undefined
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        navigate('/login')
+      setLoading(true)
+
+      if (user) {
+        setIsGuestMode(false)
+        setProfileLabel(user.email ?? 'Authenticated user')
+
+        try {
+          const roomsQuery = query(
+            collection(db, 'rooms'),
+            where('uid', '==', user.uid),
+            orderBy('createdAt', 'desc'),
+          )
+          const snapshot = await getDocs(roomsQuery)
+          const mappedRooms = snapshot.docs.map((entry) => ({
+            id: entry.id,
+            ...entry.data(),
+          }))
+          setRooms(mappedRooms)
+        } catch (error) {
+          console.error('Error fetching rooms:', error)
+        } finally {
+          setLoading(false)
+        }
+
         return
       }
 
-      setProfileLabel(user.email ?? 'Authenticated user')
-      setLoading(true)
+      if (guestEnabled) {
+        setIsGuestMode(true)
+        setProfileLabel('Guest mode')
 
-      try {
-        const roomsQuery = query(
-          collection(db, 'rooms'),
-          where('uid', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-        )
-        const snapshot = await getDocs(roomsQuery)
-        const mappedRooms = snapshot.docs.map((entry) => ({
-          id: entry.id,
-          ...entry.data(),
-        }))
-        setRooms(mappedRooms)
-      } catch (error) {
-        console.error('Error fetching rooms:', error)
-      } finally {
-        setLoading(false)
+        try {
+          const storedRooms = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+          setRooms(Array.isArray(storedRooms) ? storedRooms : [])
+        } catch {
+          setRooms([])
+        } finally {
+          setLoading(false)
+        }
+
+        return
       }
+
+      setRooms([])
+      setLoading(false)
+      navigate('/login')
     })
 
     return () => unsubscribe()
   }, [navigate])
 
-  const metrics = useMemo(
-    () => [
-      { label: 'Saved Rooms', value: String(rooms.length).padStart(2, '0') },
-      { label: 'Profile', value: isGuestMode ? 'Guest' : 'Cloud' },
-      { label: 'Workflow', value: '2D -> 3D' },
-    ],
-    [isGuestMode, rooms.length],
-  )
-
   const handleCreate = () => {
-    navigate('/app')
+    navigate(`/app?new=1&nonce=${Date.now().toString(36)}`)
   }
 
   const handleOpenRoom = (roomId) => {
@@ -101,6 +104,106 @@ function Dashboard() {
 
     navigate('/app')
   }
+
+  const openEditModal = (event, room) => {
+    event.stopPropagation()
+
+    const canvas = room.floorPlan?.canvas ?? {}
+    setEditingRoom(room)
+    setEditDraft({
+      name: room.name || 'Untitled Project',
+      width: Number(canvas.width) || 18,
+      depth: Number(canvas.depth) || 14,
+      pixelsPerMeter: Number(canvas.pixelsPerMeter) || 36,
+    })
+  }
+
+  const closeEditModal = () => {
+    setEditingRoom(null)
+  }
+
+  const handleSaveEdit = async (event) => {
+    event.preventDefault()
+
+    if (!editingRoom) {
+      return
+    }
+
+    const nextName = (editDraft.name || 'Untitled Project').trim() || 'Untitled Project'
+    const nextWidth = Number(editDraft.width)
+    const nextDepth = Number(editDraft.depth)
+    const nextPixelsPerMeter = Number(editDraft.pixelsPerMeter)
+
+    if (isGuestMode) {
+      const nextRooms = rooms.map((room) => {
+        if (room.id !== editingRoom.id) {
+          return room
+        }
+
+        return {
+          ...room,
+          name: nextName,
+          updatedAt: new Date().toISOString(),
+          floorPlan: {
+            ...room.floorPlan,
+            canvas: {
+              ...room.floorPlan?.canvas,
+              width: nextWidth,
+              depth: nextDepth,
+              pixelsPerMeter: nextPixelsPerMeter,
+            },
+          },
+        }
+      })
+
+      setRooms(nextRooms)
+      window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(nextRooms))
+      closeEditModal()
+      return
+    }
+
+    await updateDoc(doc(db, 'rooms', editingRoom.id), {
+      name: nextName,
+      updatedAt: new Date().toISOString(),
+      'floorPlan.canvas.width': nextWidth,
+      'floorPlan.canvas.depth': nextDepth,
+      'floorPlan.canvas.pixelsPerMeter': nextPixelsPerMeter,
+    })
+
+    setRooms((previous) =>
+      previous.map((room) => {
+        if (room.id !== editingRoom.id) {
+          return room
+        }
+
+        return {
+          ...room,
+          name: nextName,
+          updatedAt: new Date().toISOString(),
+          floorPlan: {
+            ...room.floorPlan,
+            canvas: {
+              ...room.floorPlan?.canvas,
+              width: nextWidth,
+              depth: nextDepth,
+              pixelsPerMeter: nextPixelsPerMeter,
+            },
+          },
+        }
+      }),
+    )
+
+    closeEditModal()
+  }
+
+  const metrics = useMemo(
+    () => [
+      { label: 'Saved Rooms', value: String(rooms.length).padStart(2, '0') },
+      { label: 'Profile', value: isGuestMode ? 'Guest' : 'Cloud' },
+      { label: 'Workflow', value: '2D -> 3D' },
+    ],
+    [isGuestMode, rooms.length],
+  )
 
   const handleDeleteRoom = async (event, roomId) => {
     event.stopPropagation()
@@ -258,6 +361,15 @@ function Dashboard() {
 
                     <button
                       type="button"
+                      onClick={(event) => openEditModal(event, room)}
+                      className="absolute right-14 top-3 rounded-lg border border-cyan-200/25 bg-cyan-300/14 p-2 text-cyan-100 opacity-0 transition hover:bg-cyan-300/28 group-hover:opacity-100"
+                      aria-label="Edit room details"
+                    >
+                      <Pencil size={14} />
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={(event) => handleDeleteRoom(event, room.id)}
                       className="absolute right-3 top-3 rounded-lg border border-rose-200/25 bg-rose-300/15 p-2 text-rose-100 opacity-0 transition hover:bg-rose-300/28 group-hover:opacity-100"
                       aria-label="Delete room"
@@ -285,6 +397,93 @@ function Dashboard() {
               </motion.div>
             )}
           </>
+        )}
+
+        {editingRoom && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 px-4">
+            <form
+              onSubmit={handleSaveEdit}
+              className="surface-glass w-full max-w-xl space-y-4 p-5 md:p-6"
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100/90">Edit Project</p>
+                <h3 className="mt-1 text-2xl font-semibold text-white">Update name and canvas size</h3>
+              </div>
+
+              <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                Name
+                <input
+                  type="text"
+                  value={editDraft.name}
+                  onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                  required
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                  Width (m)
+                  <input
+                    type="number"
+                    min="6"
+                    max="200"
+                    step="1"
+                    value={editDraft.width}
+                    onChange={(event) => setEditDraft((current) => ({ ...current, width: Number(event.target.value) }))}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                    required
+                  />
+                </label>
+
+                <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                  Depth (m)
+                  <input
+                    type="number"
+                    min="6"
+                    max="200"
+                    step="1"
+                    value={editDraft.depth}
+                    onChange={(event) => setEditDraft((current) => ({ ...current, depth: Number(event.target.value) }))}
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                    required
+                  />
+                </label>
+
+                <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                  PPM
+                  <input
+                    type="number"
+                    min="16"
+                    max="140"
+                    step="1"
+                    value={editDraft.pixelsPerMeter}
+                    onChange={(event) =>
+                      setEditDraft((current) => ({ ...current, pixelsPerMeter: Number(event.target.value) }))
+                    }
+                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                    required
+                  />
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                >
+                  Save changes
+                </button>
+              </div>
+            </form>
+          </div>
         )}
       </div>
     </div>

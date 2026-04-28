@@ -225,6 +225,158 @@
   backdrop-filter: blur(8px);
 }
 
+.fp-furniture-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%);
+  z-index: 70;
+  max-width: min(460px, calc(100vw - 24px));
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(188, 230, 255, 0.5);
+  background: rgba(14, 38, 56, 0.84);
+  color: #e5f7ff;
+  font-size: 12px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.mobile-fp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  pointer-events: none;
+}
+
+.mobile-joystick,
+.mobile-look-pad {
+  position: absolute;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: none;
+}
+
+.mobile-joystick {
+  left: 14px;
+  bottom: 14px;
+  width: 132px;
+  height: 132px;
+}
+
+.mobile-joystick-base {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(205, 241, 255, 0.42);
+  background: rgba(115, 178, 210, 0.16);
+  backdrop-filter: blur(5px);
+}
+
+.mobile-joystick-stick {
+  position: absolute;
+  left: 45px;
+  top: 45px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(226, 247, 255, 0.68);
+  background: rgba(205, 239, 255, 0.36);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.24);
+}
+
+.mobile-look-pad {
+  right: 12px;
+  bottom: 14px;
+  width: min(44vw, 208px);
+  height: min(44vw, 208px);
+  border-radius: 18px;
+  border: 1px solid rgba(205, 241, 255, 0.3);
+  background: rgba(80, 139, 170, 0.08);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 12px;
+}
+
+.mobile-look-pad span {
+  font-size: 11px;
+  color: rgba(226, 245, 255, 0.72);
+  letter-spacing: 0.02em;
+}
+
+.project-setup-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(6, 14, 20, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.project-setup-card {
+  width: min(560px, 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(170, 215, 240, 0.38);
+  background: linear-gradient(165deg, rgba(17, 35, 50, 0.95), rgba(12, 25, 38, 0.95));
+  color: #ecf7ff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.project-setup-card h3 {
+  margin: 0;
+  font-size: 22px;
+  color: #f3fbff;
+}
+
+.project-setup-card p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(212, 233, 247, 0.9);
+}
+
+.project-setup-card label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(212, 233, 247, 0.95);
+}
+
+.project-setup-card input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(172, 211, 234, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2fbff;
+  padding: 9px 10px;
+}
+
+.project-setup-card input:focus {
+  outline: 2px solid rgba(145, 221, 255, 0.4);
+  outline-offset: 1px;
+}
+
+.project-setup-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.project-setup-submit {
+  border-radius: 10px;
+  border: 1px solid rgba(160, 237, 198, 0.55) !important;
+  background: linear-gradient(160deg, rgba(92, 180, 129, 0.85), rgba(64, 138, 97, 0.86)) !important;
+  color: #f1fff5;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 10px 12px !important;
+}
+
 .crosshair {
   position: absolute;
   left: 50%;
@@ -1541,5 +1693,29 @@
 
   .floor-map-canvas-toolbar {
     top: 132px;
+  }
+
+  .fp-furniture-hint {
+    bottom: 182px;
+    font-size: 11px;
+  }
+
+  .mobile-joystick {
+    width: 116px;
+    height: 116px;
+  }
+
+  .mobile-joystick-stick {
+    left: 37px;
+    top: 37px;
+  }
+
+  .mobile-look-pad {
+    width: min(45vw, 176px);
+    height: min(45vw, 176px);
+  }
+
+  .project-setup-grid {
+    grid-template-columns: 1fr;
   }
 }

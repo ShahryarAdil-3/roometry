@@ -45,6 +45,7 @@ export interface WallState extends MaterialState {
 export interface FurnitureItem {
   id: string
   type: string
+  roomId: string | null
   position: [number, number, number]
   rotation: [number, number, number]
   scale: [number, number, number]
@@ -240,6 +241,23 @@ const sanitizeDoor = (room: FloorPlanRoom, door: Omit<RoomDoor, 'id'> & { id?: s
   }
 }
 
+const getFurnitureHalfExtents = (item: FurnitureItem) => ({
+  x: Math.max(0.2, (item.scale?.[0] ?? 1) * 0.5),
+  y: Math.max(0.2, (item.scale?.[1] ?? 1) * 0.5),
+  z: Math.max(0.2, (item.scale?.[2] ?? 1) * 0.5),
+})
+
+const isFurnitureInsideRoom = (item: FurnitureItem, room: FloorPlanRoom) => {
+  const half = getFurnitureHalfExtents(item)
+  const [x, y, z] = item.position
+
+  const insideX = x - half.x >= -room.width / 2 && x + half.x <= room.width / 2
+  const insideZ = z - half.z >= -room.depth / 2 && z + half.z <= room.depth / 2
+  const insideY = y - half.y >= 0 && y + half.y <= room.height
+
+  return insideX && insideY && insideZ
+}
+
 const syncRoomToScene = (state: SceneState): Partial<SceneState> | SceneState => {
   const selectedRoom = state.floorPlan.rooms.find((room) => room.id === state.floorPlan.selectedRoomId)
   if (!selectedRoom) {
@@ -387,7 +405,13 @@ const createInitialState = (
 
   addFurniture: (item) =>
     set((state) => ({
-      furniture: [...state.furniture, item],
+      furniture: [
+        ...state.furniture,
+        {
+          ...item,
+          roomId: item.roomId ?? state.floorPlan.selectedRoomId ?? null,
+        },
+      ],
     })),
 
   updateFurniture: (id, patch) =>
@@ -702,6 +726,18 @@ const createInitialState = (
         }
       }
 
+      const impactedFurniture = state.furniture.filter((item) => item.roomId === roomId)
+      const outOfBoundsFurniture = impactedFurniture.find((item) => !isFurnitureInsideRoom(item, nextRoom))
+      if (outOfBoundsFurniture) {
+        return {
+          floorPlan: {
+            ...state.floorPlan,
+            constraintMessage:
+              `Resize blocked: ${outOfBoundsFurniture.type} would end up outside ${currentRoom.name}. Move furniture first.`,
+          },
+        }
+      }
+
       const nextRooms = [...state.floorPlan.rooms]
       nextRooms[roomIndex] = nextRoom
 
@@ -739,6 +775,7 @@ const createInitialState = (
 
       const nextState: SceneState = {
         ...state,
+        furniture: state.furniture.filter((item) => item.roomId !== roomId),
         floorPlan: {
           ...state.floorPlan,
           rooms: nextRooms,
@@ -868,7 +905,7 @@ const createInitialState = (
 export const useSceneStore = create<SceneState>()(
   persist((set, get) => createInitialState(set, get), {
     name: 'roometry-scene-v3',
-    version: 5,
+    version: 6,
     storage: createJSONStorage(() => localStorage),
     partialize: (state) => ({
       room: state.room,
@@ -903,9 +940,19 @@ export const useSceneStore = create<SceneState>()(
           initialFloorPlan.canvas.pixelsPerMeter,
       })
 
+      const fallbackRoomId =
+        state?.floorPlan?.selectedRoomId ??
+        (migratedRooms && migratedRooms.length > 0 ? migratedRooms[0].id : null)
+
+      const migratedFurniture = (Array.isArray(state?.furniture) ? state.furniture : []).map((item) => ({
+        ...item,
+        roomId: item.roomId ?? fallbackRoomId,
+      }))
+
       return {
         ...createInitialSceneData(),
         ...state,
+        furniture: migratedFurniture,
         floorPlan: {
           ...initialFloorPlan,
           ...(state?.floorPlan ?? {}),
