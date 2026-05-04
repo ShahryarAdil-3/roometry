@@ -2,6 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Cuboid, Map, Wand2 } from 'lucide-react'
+import ThemeToggle from '../components/ThemeToggle'
 
 const modules = [
   {
@@ -62,7 +63,7 @@ const heroVariants = {
 
 function Landing() {
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-slate-950 text-slate-100">
+    <div className="page-shell relative min-h-screen overflow-x-clip">
       <div className="top-glow pointer-events-none absolute -top-56 left-1/2 h-[560px] w-[560px] -translate-x-1/2 blur-3xl" />
       <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.14]" />
 
@@ -75,6 +76,7 @@ function Landing() {
         </Link>
 
         <div className="hidden items-center gap-3 md:flex">
+          <ThemeToggle />
           <Link
             to="/login"
             className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-2 text-sm text-slate-200 transition hover:border-cyan-300/45 hover:text-white"
@@ -87,6 +89,10 @@ function Landing() {
           >
             Get started
           </Link>
+        </div>
+
+        <div className="md:hidden">
+          <ThemeToggle />
         </div>
       </header>
 

@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore'
 import { Clock, Cuboid, LayoutGrid, LogOut, Pencil, Plus, Trash2, Wand2 } from 'lucide-react'
 import { auth, db } from '../firebase/firebase'
+import ThemeToggle from '../components/ThemeToggle'
+import { saveProjectSnapshot } from '../firebase/projects'
 
 const formatCreatedAt = (value) => {
   if (!value) {
@@ -36,6 +38,27 @@ function Dashboard() {
     depth: 14,
     pixelsPerMeter: 36,
   })
+  const [guestProjects, setGuestProjects] = useState([])
+  const [isMigrating, setIsMigrating] = useState(false)
+  const [migrationMessage, setMigrationMessage] = useState('')
+
+  const loadCloudProjects = useCallback(async (user) => {
+    try {
+      const roomsQuery = query(
+        collection(db, 'rooms'),
+        where('uid', '==', user.uid),
+        orderBy('createdAt', 'desc'),
+      )
+      const snapshot = await getDocs(roomsQuery)
+      const mappedRooms = snapshot.docs.map((entry) => ({
+        id: entry.id,
+        ...entry.data(),
+      }))
+      setRooms(mappedRooms)
+    } catch (error) {
+      console.error('Error fetching rooms:', error)
+    }
+  }, [])
 
   useEffect(() => {
     const guestEnabled = window.localStorage.getItem('roometry_guest_mode') === 'true'
@@ -47,23 +70,10 @@ function Dashboard() {
         setIsGuestMode(false)
         setProfileLabel(user.email ?? 'Authenticated user')
 
-        try {
-          const roomsQuery = query(
-            collection(db, 'rooms'),
-            where('uid', '==', user.uid),
-            orderBy('createdAt', 'desc'),
-          )
-          const snapshot = await getDocs(roomsQuery)
-          const mappedRooms = snapshot.docs.map((entry) => ({
-            id: entry.id,
-            ...entry.data(),
-          }))
-          setRooms(mappedRooms)
-        } catch (error) {
-          console.error('Error fetching rooms:', error)
-        } finally {
-          setLoading(false)
-        }
+        await loadCloudProjects(user)
+        const localGuests = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+        setGuestProjects(Array.isArray(localGuests) ? localGuests : [])
+        setLoading(false)
 
         return
       }
@@ -90,7 +100,56 @@ function Dashboard() {
     })
 
     return () => unsubscribe()
-  }, [navigate])
+  }, [loadCloudProjects, navigate])
+
+  const handleMigrateGuestProjects = async () => {
+    if (isMigrating) {
+      return
+    }
+
+    const user = auth.currentUser
+    if (!user) {
+      setMigrationMessage('Sign in to migrate your guest projects to cloud.')
+      return
+    }
+
+    const candidates = guestProjects.filter((item) => item?.snapshot)
+    if (!candidates.length) {
+      setMigrationMessage('No guest projects available to migrate.')
+      return
+    }
+
+    setIsMigrating(true)
+    setMigrationMessage('Migrating guest projects...')
+
+    try {
+      await Promise.all(
+        candidates.map((project) =>
+          saveProjectSnapshot({
+            uid: user.uid,
+            name: project.name || 'Untitled Project',
+            snapshot: project.snapshot,
+          }),
+        ),
+      )
+
+      window.localStorage.removeItem('roometry_guest_rooms')
+      window.localStorage.removeItem('roometry_guest_mode')
+      setGuestProjects([])
+      await loadCloudProjects(user)
+      setMigrationMessage('Guest projects migrated to cloud successfully.')
+    } catch (migrationError) {
+      console.error('Migration failed:', migrationError)
+      setMigrationMessage('Migration failed. Please try again.')
+    } finally {
+      setIsMigrating(false)
+    }
+  }
+
+  const handleDismissMigration = () => {
+    setGuestProjects([])
+    setMigrationMessage('')
+  }
 
   const handleCreate = () => {
     navigate(`/app?new=1&nonce=${Date.now().toString(36)}`)
@@ -231,7 +290,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="page-shell relative min-h-screen overflow-hidden">
       <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.15]" />
       <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-cyan-300/10 blur-[120px]" />
       <div className="pointer-events-none absolute -right-16 bottom-8 h-64 w-64 rounded-full bg-emerald-300/10 blur-[130px]" />
@@ -254,6 +313,7 @@ function Dashboard() {
             </div>
 
             <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+              <ThemeToggle />
               <button
                 type="button"
                 onClick={handleLogout}
@@ -283,6 +343,36 @@ function Dashboard() {
             ))}
           </div>
         </motion.header>
+
+        {!isGuestMode && guestProjects.length > 0 && (
+          <div className="surface-glass mb-6 flex flex-wrap items-center justify-between gap-4 p-4">
+            <div>
+              <p className="text-sm font-semibold text-white">Guest projects found</p>
+              <p className="text-xs text-slate-300">
+                Migrate {guestProjects.length} guest project{guestProjects.length > 1 ? 's' : ''} to your cloud
+                account so they are available across devices.
+              </p>
+              {migrationMessage && <p className="mt-2 text-xs text-slate-300">{migrationMessage}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleMigrateGuestProjects}
+                disabled={isMigrating}
+                className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isMigrating ? 'Migrating...' : 'Migrate to cloud'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDismissMigration}
+                className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="surface-glass flex min-h-72 flex-col items-center justify-center gap-4 p-8 text-center">

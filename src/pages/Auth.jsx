@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Lock, Mail, UserMinus } from 'lucide-react'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../firebase/firebase'
+import ThemeToggle from '../components/ThemeToggle'
 
 const infoItems = [
   'Studio-grade dark UI with fluid transitions',
@@ -58,10 +59,14 @@ const AuthField = ({ icon, label, ...props }) => {
 
 const AuthShell = ({ title, subtitle, children, isRegister }) => {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="page-shell relative min-h-screen overflow-hidden">
       <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.16]" />
       <div className="pointer-events-none absolute -left-20 top-8 h-64 w-64 rounded-full bg-cyan-400/15 blur-[120px]" />
       <div className="pointer-events-none absolute -right-24 bottom-0 h-64 w-64 rounded-full bg-emerald-300/10 blur-[130px]" />
+
+      <div className="absolute right-5 top-5 z-20">
+        <ThemeToggle />
+      </div>
 
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl items-center gap-6 px-5 py-8 md:px-10 lg:grid-cols-[1fr_440px] lg:py-10">
         <motion.section

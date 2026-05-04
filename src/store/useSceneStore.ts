@@ -52,6 +52,15 @@ export interface FurnitureItem {
   material?: Partial<MaterialState>
 }
 
+export interface FurniturePlacement {
+  type: string
+  roomId: string | null
+  scale: [number, number, number]
+  rotationY: number
+  snapToGrid: boolean
+  material?: Partial<MaterialState>
+}
+
 interface CameraPreset {
   position: [number, number, number]
   target: [number, number, number]
@@ -78,6 +87,7 @@ interface SceneData {
   floor: MaterialState
   ceiling: MaterialState
   furniture: FurnitureItem[]
+  furniturePlacement: FurniturePlacement | null
   cameraMode: CameraMode
   cameraPresets: Record<CameraMode, CameraPreset>
   firstPerson: FirstPersonSettings
@@ -101,12 +111,14 @@ interface SceneActions {
   addFurniture: (item: FurnitureItem) => void
   updateFurniture: (id: string, patch: Partial<Omit<FurnitureItem, 'id'>>) => void
   removeFurniture: (id: string) => void
+  setFurniturePlacement: (placement: FurniturePlacement | null) => void
   setCameraMode: (mode: CameraMode) => void
   setFirstPersonSettings: (patch: Partial<FirstPersonSettings>) => void
   setUiMode: (mode: UiMode) => void
   setLivePreview: (enabled: boolean) => void
   setCanvasSettings: (patch: Partial<FloorPlanCanvas>) => void
   setSnapSettings: (patch: { enabled?: boolean; step?: number }) => void
+  clearConstraintMessage: () => void
   createRoom: (room: Omit<FloorPlanRoom, 'id' | 'name' | 'doors'> & { id?: string; name?: string }) => string | null
   moveRoom: (roomId: string, nextX: number, nextZ: number) => boolean
   updateRoom: (roomId: string, patch: Partial<Omit<FloorPlanRoom, 'id' | 'doors'>>) => void
@@ -304,6 +316,7 @@ const createInitialSceneData = (): SceneData => ({
     metalness: 0,
   },
   furniture: [],
+  furniturePlacement: null,
   cameraMode: 'orbit',
   cameraPresets,
   firstPerson: {
@@ -412,6 +425,11 @@ const createInitialState = (
           roomId: item.roomId ?? state.floorPlan.selectedRoomId ?? null,
         },
       ],
+    })),
+
+  setFurniturePlacement: (placement) =>
+    set((state) => ({
+      furniturePlacement: placement,
     })),
 
   updateFurniture: (id, patch) =>
@@ -569,6 +587,20 @@ const createInitialState = (
           ...state.floorPlan,
           snapEnabled: nextEnabled,
           snapStep: nextStep,
+        },
+      }
+    }),
+
+  clearConstraintMessage: () =>
+    set((state) => {
+      if (!state.floorPlan.constraintMessage) {
+        return state
+      }
+
+      return {
+        floorPlan: {
+          ...state.floorPlan,
+          constraintMessage: null,
         },
       }
     }),

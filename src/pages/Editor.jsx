@@ -6,6 +6,7 @@ import SceneControls from '../components/SceneControls'
 import SceneViewport from '../components/SceneViewport'
 import FloorMapCanvas from '../components/FloorMapCanvas'
 import { ControlIcon } from '../components/ui/ControlIcons'
+import ThemeToggle from '../components/ThemeToggle'
 import { auth } from '../firebase/firebase'
 import { fetchProjectSnapshot, saveProjectSnapshot } from '../firebase/projects'
 import '../App.css'
@@ -19,6 +20,7 @@ const STYLE_VARIANTS = [
 const STYLE_VARIANT_STORAGE_KEY = 'roometry-style-variant'
 const GUEST_MODE_STORAGE_KEY = 'roometry_guest_mode'
 const GUEST_PROJECTS_STORAGE_KEY = 'roometry_guest_rooms'
+const GUIDED_MODE_STORAGE_KEY = 'roometry-guided-mode'
 const WALL_KEYS = ['north', 'south', 'east', 'west']
 
 const cloneSerializable = (value) => JSON.parse(JSON.stringify(value))
@@ -214,6 +216,13 @@ function App() {
     depth: 14,
     pixelsPerMeter: 36,
   }))
+  const [showGuidedMode, setShowGuidedMode] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true
+    }
+
+    return window.localStorage.getItem(GUIDED_MODE_STORAGE_KEY) !== 'dismissed'
+  })
 
   const isGuestMode = guestModePreference && !authUser
 
@@ -491,6 +500,13 @@ function App() {
     navigate('/dashboard')
   }
 
+  const dismissGuidedMode = () => {
+    setShowGuidedMode(false)
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(GUIDED_MODE_STORAGE_KEY, 'dismissed')
+    }
+  }
+
   const handleProjectSetupSubmit = (event) => {
     event.preventDefault()
 
@@ -570,11 +586,38 @@ function App() {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            className="editor-action-btn"
+            onClick={() => setShowGuidedMode(true)}
+          >
+            <span className="icon-label">
+              <ControlIcon name="help" size={14} />
+              Tips
+            </span>
+          </button>
+          <ThemeToggle variant="editor" />
         </div>
 
         {!!saveMessage && (
           <div className={`editor-status-badge ${saveState === 'error' ? 'error' : ''}`}>
             {saveMessage}
+          </div>
+        )}
+
+        {showGuidedMode && (
+          <div className="guided-overlay" role="dialog" aria-modal="true">
+            <div className="guided-card">
+              <h3>Quick Start</h3>
+              <ol>
+                <li>Draw a room by dragging on the canvas.</li>
+                <li>Select a room, then click 3D to visualize.</li>
+                <li>Pick furniture and click in 3D to place it.</li>
+              </ol>
+              <div className="guided-actions">
+                <button type="button" onClick={dismissGuidedMode}>Got it</button>
+              </div>
+            </div>
           </div>
         )}
 

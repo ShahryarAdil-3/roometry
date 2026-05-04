@@ -6,6 +6,7 @@ import Landing from './pages/Landing'
 import { Login, Register } from './pages/Auth'
 import Dashboard from './pages/Dashboard'
 import Editor from './pages/Editor'
+import ThemeProvider from './context/ThemeProvider'
 
 const PageTransition = ({ children }) => {
   return (
@@ -40,9 +41,11 @@ const AnimatedRoutes = () => {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AnimatedRoutes />
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AnimatedRoutes />
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
 

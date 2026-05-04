@@ -10,6 +10,7 @@ const RULER_GUTTER = 18
 const GRID_UNIT_METERS = 1
 
 const RESIZE_HANDLES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
+const RULER_STEPS = [0.5, 1, 2, 5, 10, 20, 50, 100]
 
 const toWorldFromScreen = (point, rect, pixelsPerMeter, view) => ({
   x: view.x + (point.x - rect.left - rect.width / 2) / (pixelsPerMeter * view.zoom),
@@ -29,15 +30,28 @@ const roundToStep = (value, step) => {
   return Math.round(value / step) * step
 }
 
+const pickRulerStep = (scale) => {
+  const targetPx = 80
+  for (const step of RULER_STEPS) {
+    if (step * scale >= targetPx) {
+      return step
+    }
+  }
+
+  return RULER_STEPS[RULER_STEPS.length - 1]
+}
+
 export default function FloorMapCanvas({ isTouchDevice = false }) {
   const floorPlan = useSceneStore((state) => state.floorPlan)
   const createRoom = useSceneStore((state) => state.createRoom)
   const moveRoom = useSceneStore((state) => state.moveRoom)
   const updateRoom = useSceneStore((state) => state.updateRoom)
+  const removeRoom = useSceneStore((state) => state.removeRoom)
   const selectRoom = useSceneStore((state) => state.selectRoom)
   const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
+  const clearConstraintMessage = useSceneStore((state) => state.clearConstraintMessage)
 
   const selectedRoom = useMemo(
     () => floorPlan.rooms.find((room) => room.id === floorPlan.selectedRoomId) ?? null,
@@ -58,6 +72,8 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
   const [view, setView] = useState({ x: 0, z: 0, zoom: 1 })
   const [showTopChrome, setShowTopChrome] = useState(true)
   const [showBottomChrome, setShowBottomChrome] = useState(true)
+  const [confirmDeleteRoomId, setConfirmDeleteRoomId] = useState(null)
+  const lastFitKeyRef = useRef('')
 
   const pixelsPerMeter = canvas.pixelsPerMeter
   const horizontalLimit = canvas.width / 2
@@ -407,6 +423,15 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
         return
       }
 
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        const room = floorPlan.rooms.find((item) => item.id === floorPlan.selectedRoomId)
+        if (room) {
+          event.preventDefault()
+          setConfirmDeleteRoomId(room.id)
+        }
+        return
+      }
+
       let deltaX = 0
       let deltaZ = 0
       const step = event.shiftKey ? GRID_UNIT_METERS * 5 : GRID_UNIT_METERS
@@ -503,6 +528,37 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
     setView({ x: 0, z: 0, zoom: 1 })
   }
 
+  const fitCanvasToView = useCallback(() => {
+    if (!canvasRect) {
+      return
+    }
+
+    const padding = 48
+    const maxZoomX = (canvasRect.width - padding) / (canvas.width * pixelsPerMeter)
+    const maxZoomZ = (canvasRect.height - padding) / (canvas.depth * pixelsPerMeter)
+    const nextZoom = Math.max(MIN_VIEW_ZOOM, Math.min(MAX_VIEW_ZOOM, Math.min(maxZoomX, maxZoomZ)))
+
+    setView({ x: 0, z: 0, zoom: Number.isFinite(nextZoom) ? nextZoom : 1 })
+  }, [canvas.depth, canvas.width, canvasRect, pixelsPerMeter])
+
+  useEffect(() => {
+    if (!canvasRect) {
+      return
+    }
+
+    const fitKey = `${canvas.width}x${canvas.depth}x${canvasRect.width}x${canvasRect.height}`
+    if (lastFitKeyRef.current === fitKey) {
+      return
+    }
+
+    lastFitKeyRef.current = fitKey
+    const timer = window.setTimeout(() => {
+      fitCanvasToView()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [canvas.width, canvas.depth, canvasRect, fitCanvasToView])
+
   const centerSelectedRoom = () => {
     if (!selectedRoom) {
       return
@@ -529,7 +585,7 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
     setUiMode('visualize')
   }
 
-  const rulerStep = GRID_UNIT_METERS
+  const rulerStep = useMemo(() => pickRulerStep(pixelsPerMeter * view.zoom), [pixelsPerMeter, view.zoom])
 
   const gridOffsets = useMemo(() => {
     const spacing = pixelsPerMeter * view.zoom
@@ -552,21 +608,20 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
     }
 
     const scale = pixelsPerMeter * view.zoom
-    const minVisible = view.x - canvasRect.width / (2 * scale)
-    const maxVisible = view.x + canvasRect.width / (2 * scale)
+    const minVisible = Math.max(0, view.x - canvasRect.width / (2 * scale) + canvas.width / 2)
+    const maxVisible = Math.min(canvas.width, view.x + canvasRect.width / (2 * scale) + canvas.width / 2)
     const start = Math.floor(minVisible / rulerStep) * rulerStep
     const ticks = []
-    const majorStep = rulerStep * 5
 
     for (let value = start; value <= maxVisible + rulerStep; value += rulerStep) {
       const rounded = Number(value.toFixed(4))
-      const left = canvasRect.width / 2 + (rounded - view.x) * scale - RULER_GUTTER
-      const major = Math.abs(Math.round(rounded / majorStep) * majorStep - rounded) < 0.0001
-      ticks.push({ value: rounded, left, major })
+      const worldX = rounded - canvas.width / 2
+      const left = canvasRect.width / 2 + (worldX - view.x) * scale - RULER_GUTTER
+      ticks.push({ value: rounded, left })
     }
 
     return ticks
-  }, [canvasRect, pixelsPerMeter, rulerStep, view.x, view.zoom])
+  }, [canvas.width, canvasRect, pixelsPerMeter, rulerStep, view.x, view.zoom])
 
   const zTicks = useMemo(() => {
     if (!canvasRect) {
@@ -574,21 +629,20 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
     }
 
     const scale = pixelsPerMeter * view.zoom
-    const minVisible = view.z - canvasRect.height / (2 * scale)
-    const maxVisible = view.z + canvasRect.height / (2 * scale)
+    const minVisible = Math.max(0, view.z - canvasRect.height / (2 * scale) + canvas.depth / 2)
+    const maxVisible = Math.min(canvas.depth, view.z + canvasRect.height / (2 * scale) + canvas.depth / 2)
     const start = Math.floor(minVisible / rulerStep) * rulerStep
     const ticks = []
-    const majorStep = rulerStep * 5
 
     for (let value = start; value <= maxVisible + rulerStep; value += rulerStep) {
       const rounded = Number(value.toFixed(4))
-      const top = canvasRect.height / 2 + (rounded - view.z) * scale - RULER_GUTTER
-      const major = Math.abs(Math.round(rounded / majorStep) * majorStep - rounded) < 0.0001
-      ticks.push({ value: rounded, top, major })
+      const worldZ = rounded - canvas.depth / 2
+      const top = canvasRect.height / 2 + (worldZ - view.z) * scale - RULER_GUTTER
+      ticks.push({ value: rounded, top })
     }
 
     return ticks
-  }, [canvasRect, pixelsPerMeter, rulerStep, view.z, view.zoom])
+  }, [canvas.depth, canvasRect, pixelsPerMeter, rulerStep, view.z, view.zoom])
 
   return (
     <section className={`floor-map-shell ${showTopChrome ? '' : 'floor-map-shell-top-hidden'}`}>
@@ -626,9 +680,13 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
               <ControlIcon name="reset" size={14} />
               Reset View
             </button>
+            <button type="button" onClick={fitCanvasToView}>
+              <ControlIcon name="workspace" size={14} />
+              Fit Canvas
+            </button>
             <span className="floor-map-readout">
               <ControlIcon name="zoom" size={13} />
-              Zoom: {view.zoom.toFixed(2)}x | Pan: {view.x.toFixed(1)}m, {view.z.toFixed(1)}m
+              Zoom: {view.zoom.toFixed(2)}x | Pan: {(view.x + canvas.width / 2).toFixed(1)}m, {(view.z + canvas.depth / 2).toFixed(1)}m
             </span>
           </div>
         </header>
@@ -795,6 +853,9 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
               <button type="button" onClick={() => zoomBy(0.84)} aria-label="Zoom out">
                 -
               </button>
+              <button type="button" onClick={fitCanvasToView} aria-label="Fit canvas">
+                Fit
+              </button>
               <button
                 type="button"
                 onClick={quickVisualize}
@@ -806,30 +867,53 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
             </div>
           )}
 
-          <div className="floor-map-grid" />
+          {canvasRect && (() => {
+            const topLeft = toScreenFromWorld(
+              { x: -canvas.width / 2, z: -canvas.depth / 2 },
+              canvasRect,
+              pixelsPerMeter,
+              view,
+            )
+            const width = canvas.width * pixelsPerMeter * view.zoom
+            const height = canvas.depth * pixelsPerMeter * view.zoom
+            const gridOffsetX = gridOffsets.x - topLeft.x
+            const gridOffsetY = gridOffsets.y - topLeft.y
+
+            return (
+              <div
+                className="floor-map-workspace"
+                style={{
+                  left: `${topLeft.x}px`,
+                  top: `${topLeft.y}px`,
+                  width: `${width}px`,
+                  height: `${height}px`,
+                  '--grid-offset-x': `${gridOffsetX}px`,
+                  '--grid-offset-y': `${gridOffsetY}px`,
+                }}
+                aria-hidden="true"
+              >
+                <div className="floor-map-grid" />
+                <span className="floor-map-workspace-label">
+                  Canvas {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
+                </span>
+              </div>
+            )
+          })()}
 
           <div className="floor-map-ruler floor-map-ruler-x" aria-hidden="true">
             {xTicks.map((tick) => (
-              <span
-                key={`x-${tick.value}`}
-                className={tick.major ? 'major' : ''}
-                style={{ left: `${tick.left}px` }}
-              >
+              <span key={`x-${tick.value}`} style={{ left: `${tick.left}px` }}>
                 <i />
-                {tick.major ? <strong>{tick.value}m</strong> : null}
+                <strong>{tick.value}m</strong>
               </span>
             ))}
           </div>
 
           <div className="floor-map-ruler floor-map-ruler-z" aria-hidden="true">
             {zTicks.map((tick) => (
-              <span
-                key={`z-${tick.value}`}
-                className={tick.major ? 'major' : ''}
-                style={{ top: `${tick.top}px` }}
-              >
+              <span key={`z-${tick.value}`} style={{ top: `${tick.top}px` }}>
                 <i />
-                {tick.major ? <strong>{tick.value}m</strong> : null}
+                <strong>{tick.value}m</strong>
               </span>
             ))}
           </div>
@@ -899,6 +983,52 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
           </>
         )}
       </div>
+
+      {floorPlan.constraintMessage && (
+        <div className="planner-modal-overlay" role="dialog" aria-modal="true">
+          <div className="planner-modal-card">
+            <h3>Action blocked</h3>
+            <p>{floorPlan.constraintMessage}</p>
+            <div className="planner-modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  clearConstraintMessage()
+                }}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteRoomId && (
+        <div className="planner-modal-overlay" role="dialog" aria-modal="true">
+          <div className="planner-modal-card">
+            <h3>Delete room?</h3>
+            <p>Removing this room will also remove all furniture assigned to it.</p>
+            <div className="planner-modal-actions">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setConfirmDeleteRoomId(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeRoom(confirmDeleteRoomId)
+                  setConfirmDeleteRoomId(null)
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

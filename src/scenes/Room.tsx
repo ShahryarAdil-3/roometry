@@ -14,6 +14,8 @@ interface SurfaceProps {
 	color: string
 	textureUrl?: string
 	repeat?: [number, number]
+	onPointerMove?: (event: any) => void
+	onPointerDown?: (event: any) => void
 }
 
 interface WallWithDoorProps {
@@ -36,6 +38,8 @@ interface RoomProps {
 	wallTexture?: string
 	ceilingColor?: string
 	onFurniturePointerDown?: (furnitureId: string) => void
+	onFloorPointerMove?: (event: any) => void
+	onFloorPointerDown?: (event: any) => void
 }
 
 const prepareTexture = (texture: THREE.Texture | null, repeat: [number, number]) => {
@@ -59,6 +63,8 @@ function Surface({
 	color,
 	textureUrl,
 	repeat = [1, 1],
+	onPointerMove,
+	onPointerDown,
 }: SurfaceProps) {
 	const loadedTexture = useTexture(textureUrl ?? FALLBACK_TEXTURE)
 
@@ -68,7 +74,13 @@ function Surface({
 	)
 
 	return (
-		<mesh position={position} rotation={rotation} receiveShadow>
+		<mesh
+			position={position}
+			rotation={rotation}
+			receiveShadow
+			onPointerMove={onPointerMove}
+			onPointerDown={onPointerDown}
+		>
 			<planeGeometry args={size} />
 			<meshStandardMaterial color={color} map={map} side={THREE.DoubleSide} />
 		</mesh>
@@ -173,6 +185,8 @@ export default function Room({
 	wallTexture,
 	ceilingColor,
 	onFurniturePointerDown,
+	onFloorPointerMove,
+	onFloorPointerDown,
 }: RoomProps) {
 	const room = useSceneStore((state) => state.room)
 	const floor = useSceneStore((state) => state.floor)
@@ -203,6 +217,8 @@ export default function Room({
 				color={resolvedFloorColor}
 				textureUrl={resolvedFloorTexture}
 				repeat={[3, 3]}
+				onPointerMove={onFloorPointerMove}
+				onPointerDown={onFloorPointerDown}
 			/>
 
 			<Surface

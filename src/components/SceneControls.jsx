@@ -3,6 +3,7 @@ import { useSceneStore } from '../store/useSceneStore'
 import { ControlIcon } from './ui/ControlIcons'
 
 const wallOrder = ['north', 'south', 'east', 'west']
+const RECENT_FURNITURE_KEY = 'roometry-recent-furniture'
 
 const sampleFurnitureTemplates = [
   {
@@ -100,9 +101,10 @@ export default function SceneControls({ onHide }) {
   const walls = useSceneStore((state) => state.walls)
   const setWall = useSceneStore((state) => state.setWall)
   const furniture = useSceneStore((state) => state.furniture)
-  const addFurniture = useSceneStore((state) => state.addFurniture)
   const updateFurniture = useSceneStore((state) => state.updateFurniture)
   const removeFurniture = useSceneStore((state) => state.removeFurniture)
+  const furniturePlacement = useSceneStore((state) => state.furniturePlacement)
+  const setFurniturePlacement = useSceneStore((state) => state.setFurniturePlacement)
   const firstPerson = useSceneStore((state) => state.firstPerson)
   const setFirstPersonSettings = useSceneStore((state) => state.setFirstPersonSettings)
   const resetScene = useSceneStore((state) => state.resetScene)
@@ -114,7 +116,18 @@ export default function SceneControls({ onHide }) {
   const [doorWidth, setDoorWidth] = useState(1)
   const [doorHeight, setDoorHeight] = useState(2.1)
   const furnitureConstraintAlertRef = useRef('')
-  const furnitureIdCounterRef = useRef(1)
+  const [recentFurniture, setRecentFurniture] = useState(() => {
+    if (typeof window === 'undefined') {
+      return []
+    }
+
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(RECENT_FURNITURE_KEY) ?? '[]')
+      return Array.isArray(stored) ? stored : []
+    } catch {
+      return []
+    }
+  })
 
   const selectedRoom = useMemo(
     () => floorPlan.rooms.find((room) => room.id === floorPlan.selectedRoomId) ?? null,
@@ -126,7 +139,6 @@ export default function SceneControls({ onHide }) {
     depth: 14,
     pixelsPerMeter: 36,
   }
-
   const commitNumeric = (rawValue, callback) => {
     const parsed = Number(rawValue)
     if (Number.isFinite(parsed)) {
@@ -144,22 +156,40 @@ export default function SceneControls({ onHide }) {
     [furniture, selectedRoom?.id],
   )
 
-  const handleAddFurniture = (template) => {
-    if (!selectedRoom) {
-      window.alert('Select a room before adding furniture.')
+  useEffect(() => {
+    if (typeof window === 'undefined') {
       return
     }
 
-    const sequence = Math.max(furnitureIdCounterRef.current, furniture.length + 1)
-    furnitureIdCounterRef.current = sequence + 1
+    window.localStorage.setItem(RECENT_FURNITURE_KEY, JSON.stringify(recentFurniture))
+  }, [recentFurniture])
 
-    addFurniture({
-      id: `furniture-${sequence}`,
+  const addRecentFurniture = (template) => {
+    setRecentFurniture((current) => {
+      const next = [template, ...current.filter((item) => item.type !== template.type)]
+      return next.slice(0, 6)
+    })
+  }
+
+  const handlePlaceFurniture = (template) => {
+    if (!selectedRoom) {
+      window.alert('Select a room before placing furniture.')
+      return
+    }
+
+    addRecentFurniture(template)
+
+    if (furniturePlacement?.type === template.type && furniturePlacement.roomId === selectedRoom.id) {
+      setFurniturePlacement(null)
+      return
+    }
+
+    setFurniturePlacement({
       type: template.type,
       roomId: selectedRoom.id,
-      position: template.position,
-      rotation: [0, 0, 0],
       scale: template.scale,
+      rotationY: 0,
+      snapToGrid: true,
       material: {
         color: template.color,
       },
@@ -914,19 +944,83 @@ export default function SceneControls({ onHide }) {
 
             <ControlSection title="Furniture" icon="furniture">
               <p className="subtle-note">Choose what to place in the currently selected room.</p>
+              {recentFurniture.length > 0 && (
+                <div className="control-group no-margin">
+                  <p className="subtle-note">Recent</p>
+                  <div className="room-chip-grid">
+                    {recentFurniture.map((template) => (
+                      <button
+                        key={`recent-${template.type}`}
+                        type="button"
+                        className={`room-chip ${furniturePlacement?.type === template.type ? 'active' : ''}`}
+                        onClick={() => handlePlaceFurniture(template)}
+                        disabled={!selectedRoom}
+                      >
+                        {template.type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="room-chip-grid">
                 {sampleFurnitureTemplates.map((template) => (
                   <button
                     key={template.type}
                     type="button"
-                    className="room-chip"
-                    onClick={() => handleAddFurniture(template)}
+                    className={`room-chip ${furniturePlacement?.type === template.type ? 'active' : ''}`}
+                    onClick={() => handlePlaceFurniture(template)}
                     disabled={!selectedRoom}
                   >
-                    Add {template.type}
+                    Place {template.type}
                   </button>
                 ))}
               </div>
+
+              {furniturePlacement && (
+                <div className="control-group no-margin">
+                  <p className="subtle-note">
+                    Placement active: click in 3D to drop {furniturePlacement.type}.{' '}
+                    <button type="button" className="text-link" onClick={() => setFurniturePlacement(null)}>
+                      Cancel
+                    </button>
+                  </p>
+                  <p className="subtle-note">Tips: Q/E rotate, G toggle snap, Esc cancel placement.</p>
+
+                  <label>
+                    Rotation ({(furniturePlacement.rotationY ?? 0).toFixed(2)} rad)
+                    <input
+                      type="range"
+                      min={-Math.PI}
+                      max={Math.PI}
+                      step="0.05"
+                      value={furniturePlacement.rotationY ?? 0}
+                      onChange={(e) =>
+                        setFurniturePlacement({
+                          ...furniturePlacement,
+                          rotationY: Number(e.target.value),
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={furniturePlacement.snapToGrid}
+                      onChange={(e) =>
+                        setFurniturePlacement({
+                          ...furniturePlacement,
+                          snapToGrid: e.target.checked,
+                        })
+                      }
+                    />
+                    <span className="icon-label">
+                      <ControlIcon name="workspace" size={14} />
+                      Snap placement to grid
+                    </span>
+                  </label>
+                </div>
+              )}
 
               <label>
                 Selected
