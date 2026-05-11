@@ -2,11 +2,8 @@ import React from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
-import Landing from './pages/Landing'
-import { Login, Register } from './pages/Auth'
-import Dashboard from './pages/Dashboard'
-import Editor from './pages/Editor'
-import ThemeProvider from './context/ThemeProvider'
+import { Dashboard, Editor, Landing, Login, Register } from '@pages'
+import ThemeProvider from '@context/ThemeProvider'
 
 const PageTransition = ({ children }) => {
   return (

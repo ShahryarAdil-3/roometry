@@ -1,15 +1,17 @@
+// Editor page layout.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useSceneStore } from '../store/useSceneStore'
-import SceneControls from '../components/SceneControls'
-import SceneViewport from '../components/SceneViewport'
-import FloorMapCanvas from '../components/FloorMapCanvas'
-import { ControlIcon } from '../components/ui/ControlIcons'
-import ThemeToggle from '../components/ThemeToggle'
-import { auth } from '../firebase/firebase'
-import { fetchProjectSnapshot, saveProjectSnapshot } from '../firebase/projects'
-import '../App.css'
+import { useSceneStore } from '@store/useSceneStore'
+import { SceneControls } from '@components/layout/Sidebar'
+import Canvas3D from '@components/canvas/Canvas3D'
+import Canvas2D from '@components/canvas/Canvas2D'
+import { ControlIcon } from '@components/ui/ControlIcons'
+import ThemeToggle from '@components/ThemeToggle'
+import { auth } from '@appFirebase/firebase'
+import { fetchProjectSnapshot, saveProjectSnapshot } from '@appFirebase/projects'
+import '@/App.css'
+import './Editor.css'
 
 const STYLE_VARIANTS = [
   { id: 'minimal', label: 'Minimal', icon: 'theme-minimal' },
@@ -672,9 +674,9 @@ function App() {
 
         <div className="app-canvas-container">
           {uiMode === 'draw' ? (
-            <FloorMapCanvas isTouchDevice={isTouchDevice} />
+            <Canvas2D isTouchDevice={isTouchDevice} />
           ) : (
-            <SceneViewport
+            <Canvas3D
               cameraMode={cameraMode}
               preset={activePreset}
               isTouchDevice={isTouchDevice}

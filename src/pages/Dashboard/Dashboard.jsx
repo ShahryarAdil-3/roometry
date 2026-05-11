@@ -1,12 +1,14 @@
+// Dashboard page layout.
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore'
 import { Clock, Cuboid, LayoutGrid, LogOut, Pencil, Plus, Trash2, Wand2 } from 'lucide-react'
-import { auth, db } from '../firebase/firebase'
-import ThemeToggle from '../components/ThemeToggle'
-import { saveProjectSnapshot } from '../firebase/projects'
+import { auth, db } from '@appFirebase/firebase'
+import ThemeToggle from '@components/ThemeToggle'
+import { saveProjectSnapshot } from '@appFirebase/projects'
+import './Dashboard.css'
 
 const formatCreatedAt = (value) => {
   if (!value) {
@@ -291,9 +293,7 @@ function Dashboard() {
 
   return (
     <div className="page-shell relative min-h-screen overflow-hidden">
-      <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.15]" />
-      <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-cyan-300/10 blur-[120px]" />
-      <div className="pointer-events-none absolute -right-16 bottom-8 h-64 w-64 rounded-full bg-emerald-300/10 blur-[130px]" />
+      <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.2]" />
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-12 pt-8 md:px-10 md:pt-10">
         <motion.header
@@ -304,12 +304,12 @@ function Dashboard() {
         >
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/90">Project Dashboard</p>
-              <h1 className="mt-2 text-3xl font-semibold text-white sm:text-4xl md:text-5xl">Your saved spatial concepts</h1>
-              <p className="mt-3 text-sm leading-relaxed text-slate-300 sm:text-base">
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#c4b09a]">Project Dashboard</p>
+              <h1 className="mt-2 text-3xl font-medium text-[#3a2e24] sm:text-4xl md:text-5xl">Your saved spatial concepts</h1>
+              <p className="mt-3 text-sm leading-relaxed text-[#8a7260] sm:text-base">
                 Organize rooms, resume active drafts, and launch directly into the editor when you are ready to refine.
               </p>
-              <p className="mt-4 text-xs uppercase tracking-[0.2em] text-slate-400">{profileLabel || 'Loading profile'}</p>
+              <p className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#c4b09a]">{profileLabel || 'Loading profile'}</p>
             </div>
 
             <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
@@ -317,7 +317,7 @@ function Dashboard() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.04] px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-cyan-200/45 hover:bg-white/[0.09]"
+                className="inline-flex items-center gap-2 rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
               >
                 <LogOut size={15} />
                 Logout
@@ -326,7 +326,7 @@ function Dashboard() {
               <button
                 type="button"
                 onClick={handleCreate}
-                className="inline-flex items-center gap-2 rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#c07a45] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#a8632e]"
               >
                 <Plus size={16} />
                 Create New
@@ -337,8 +337,8 @@ function Dashboard() {
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             {metrics.map((item) => (
               <div key={item.label} className="surface-glass-soft p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{item.label}</p>
-                <p className="mt-2 text-lg font-semibold text-white">{item.value}</p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#c4b09a]">{item.label}</p>
+                <p className="mt-2 text-lg font-medium text-[#3a2e24]">{item.value}</p>
               </div>
             ))}
           </div>
@@ -347,26 +347,26 @@ function Dashboard() {
         {!isGuestMode && guestProjects.length > 0 && (
           <div className="surface-glass mb-6 flex flex-wrap items-center justify-between gap-4 p-4">
             <div>
-              <p className="text-sm font-semibold text-white">Guest projects found</p>
-              <p className="text-xs text-slate-300">
+              <p className="text-sm font-medium text-[#3a2e24]">Guest projects found</p>
+              <p className="text-xs text-[#8a7260]">
                 Migrate {guestProjects.length} guest project{guestProjects.length > 1 ? 's' : ''} to your cloud
                 account so they are available across devices.
               </p>
-              {migrationMessage && <p className="mt-2 text-xs text-slate-300">{migrationMessage}</p>}
+              {migrationMessage && <p className="mt-2 text-xs text-[#8a7260]">{migrationMessage}</p>}
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={handleMigrateGuestProjects}
                 disabled={isMigrating}
-                className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-lg bg-[#c07a45] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#a8632e] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isMigrating ? 'Migrating...' : 'Migrate to cloud'}
               </button>
               <button
                 type="button"
                 onClick={handleDismissMigration}
-                className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+                className="rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
               >
                 Not now
               </button>
@@ -379,17 +379,17 @@ function Dashboard() {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-              className="rounded-2xl border border-cyan-100/20 bg-cyan-200/10 p-3"
+              className="rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] p-3 text-[#c07a45]"
             >
-              <LayoutGrid size={28} className="text-cyan-100" />
+              <LayoutGrid size={28} />
             </motion.div>
-            <p className="text-sm text-slate-300">Loading your saved rooms...</p>
+            <p className="text-sm text-[#8a7260]">Loading your saved rooms...</p>
           </div>
         ) : (
           <>
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-white md:text-2xl">Saved Rooms</h2>
-              <span className="text-xs uppercase tracking-[0.18em] text-slate-400">Click a card to open</span>
+              <h2 className="text-xl font-medium text-[#3a2e24] md:text-2xl">Saved Rooms</h2>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-[#c4b09a]">Click a card to open</span>
             </div>
 
             <motion.div
@@ -401,13 +401,13 @@ function Dashboard() {
                 whileHover={{ y: -3 }}
                 whileTap={{ scale: 0.99 }}
                 onClick={handleCreate}
-                className="surface-glass group flex min-h-64 flex-col items-center justify-center border-dashed p-5 text-center transition hover:border-cyan-200/55"
+                className="surface-glass group flex min-h-64 flex-col items-center justify-center border-dashed border-[#e8e0d6] p-5 text-center transition hover:border-[#c07a45]"
               >
-                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-200/30 bg-cyan-200/10 text-cyan-100">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] text-[#c07a45]">
                   <Plus size={20} />
                 </span>
-                <p className="text-base font-semibold text-white">Create New Room</p>
-                <p className="mt-2 text-sm text-slate-300">Start a fresh 2D layout and preview it in 3D instantly.</p>
+                <p className="text-base font-medium text-[#3a2e24]">Create New Room</p>
+                <p className="mt-2 text-sm text-[#8a7260]">Start a fresh 2D layout and preview it in 3D instantly.</p>
               </motion.button>
 
               <AnimatePresence>
@@ -422,22 +422,21 @@ function Dashboard() {
                     className="surface-glass group relative cursor-pointer overflow-hidden p-0"
                     onClick={() => handleOpenRoom(room.id)}
                   >
-                    <div className="relative flex aspect-video items-center justify-center overflow-hidden border-b border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900/55 to-cyan-950/35">
-                      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(94,234,212,0.2),transparent_45%)]" />
-                      <span className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-100/20 bg-cyan-200/10 text-cyan-100">
+                    <div className="relative flex aspect-video items-center justify-center overflow-hidden border-b border-[#ede6dc] bg-[#faf5f0]">
+                      <span className="relative flex h-14 w-14 items-center justify-center rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] text-[#c07a45]">
                         <Cuboid size={24} />
                       </span>
                     </div>
 
                     <div className="space-y-3 p-4">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-1 text-base font-semibold text-white">{room.name || 'Untitled Room'}</h3>
-                        <span className="rounded-full border border-white/15 bg-white/[0.03] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-slate-300">
+                        <h3 className="line-clamp-1 text-base font-medium text-[#3a2e24]">{room.name || 'Untitled Room'}</h3>
+                        <span className="rounded-full border border-[#e8e0d6] bg-[#fdf0e6] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[#c07a45]">
                           2D/3D
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs text-slate-400">
+                      <div className="flex items-center justify-between text-xs text-[#8a7260]">
                         <span className="inline-flex items-center gap-1">
                           <Clock size={12} />
                           {formatCreatedAt(room.createdAt)}
@@ -452,7 +451,7 @@ function Dashboard() {
                     <button
                       type="button"
                       onClick={(event) => openEditModal(event, room)}
-                      className="absolute right-14 top-3 rounded-lg border border-cyan-200/25 bg-cyan-300/14 p-2 text-cyan-100 opacity-0 transition hover:bg-cyan-300/28 group-hover:opacity-100"
+                      className="absolute right-14 top-3 rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] p-2 text-[#c07a45] opacity-0 transition group-hover:opacity-100"
                       aria-label="Edit room details"
                     >
                       <Pencil size={14} />
@@ -461,7 +460,7 @@ function Dashboard() {
                     <button
                       type="button"
                       onClick={(event) => handleDeleteRoom(event, room.id)}
-                      className="absolute right-3 top-3 rounded-lg border border-rose-200/25 bg-rose-300/15 p-2 text-rose-100 opacity-0 transition hover:bg-rose-300/28 group-hover:opacity-100"
+                      className="absolute right-3 top-3 rounded-lg border border-[#e4c4c4] bg-[#f9eded] p-2 text-[#7a3c3c] opacity-0 transition group-hover:opacity-100"
                       aria-label="Delete room"
                     >
                       <Trash2 size={14} />
@@ -477,11 +476,11 @@ function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 className="surface-glass mt-6 flex min-h-44 flex-col items-center justify-center gap-3 p-8 text-center"
               >
-                <span className="rounded-2xl border border-white/15 bg-white/[0.04] p-3">
-                  <LayoutGrid size={22} className="text-slate-300" />
+                <span className="rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] p-3 text-[#c07a45]">
+                  <LayoutGrid size={22} />
                 </span>
-                <p className="text-lg font-semibold text-white">No rooms yet</p>
-                <p className="max-w-md text-sm text-slate-300">
+                <p className="text-lg font-medium text-[#3a2e24]">No rooms yet</p>
+                <p className="max-w-md text-sm text-[#8a7260]">
                   Create your first layout and build a polished transition from 2D planning into 3D visualization.
                 </p>
               </motion.div>
@@ -490,29 +489,29 @@ function Dashboard() {
         )}
 
         {editingRoom && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/75 px-4">
+          <div className="fixed inset-0 z-50 grid place-items-center bg-[#faf7f4]/90 px-4">
             <form
               onSubmit={handleSaveEdit}
               className="surface-glass w-full max-w-xl space-y-4 p-5 md:p-6"
             >
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100/90">Edit Project</p>
-                <h3 className="mt-1 text-2xl font-semibold text-white">Update name and canvas size</h3>
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#c4b09a]">Edit Project</p>
+                <h3 className="mt-1 text-2xl font-medium text-[#3a2e24]">Update name and canvas size</h3>
               </div>
 
-              <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+              <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
                 Name
                 <input
                   type="text"
                   value={editDraft.name}
                   onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))}
-                  className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                  className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
                   required
                 />
               </label>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
                   Width (m)
                   <input
                     type="number"
@@ -521,12 +520,12 @@ function Dashboard() {
                     step="1"
                     value={editDraft.width}
                     onChange={(event) => setEditDraft((current) => ({ ...current, width: Number(event.target.value) }))}
-                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                    className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
                     required
                   />
                 </label>
 
-                <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
                   Depth (m)
                   <input
                     type="number"
@@ -535,12 +534,12 @@ function Dashboard() {
                     step="1"
                     value={editDraft.depth}
                     onChange={(event) => setEditDraft((current) => ({ ...current, depth: Number(event.target.value) }))}
-                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                    className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
                     required
                   />
                 </label>
 
-                <label className="block space-y-1 text-xs uppercase tracking-[0.12em] text-slate-300">
+                <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
                   PPM
                   <input
                     type="number"
@@ -551,7 +550,7 @@ function Dashboard() {
                     onChange={(event) =>
                       setEditDraft((current) => ({ ...current, pixelsPerMeter: Number(event.target.value) }))
                     }
-                    className="w-full rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200/45"
+                    className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
                     required
                   />
                 </label>
@@ -561,13 +560,13 @@ function Dashboard() {
                 <button
                   type="button"
                   onClick={closeEditModal}
-                  className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+                  className="rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200"
+                  className="rounded-lg bg-[#c07a45] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#a8632e]"
                 >
                   Save changes
                 </button>

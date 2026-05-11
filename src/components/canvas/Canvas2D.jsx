@@ -1,6 +1,22 @@
+// 2D floor plan canvas with drawing and resize handles.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useSceneStore } from '../store/useSceneStore'
-import { ControlIcon } from './ui/ControlIcons'
+import { useSceneStore } from '@store/useSceneStore'
+import {
+  pickRulerStep,
+  roundToStep,
+  toScreenFromWorld,
+  toWorldFromScreen,
+} from '@utils/floorMap'
+import CanvasShell from './2d/CanvasShell'
+import CanvasToolbar from './2d/CanvasToolbar'
+import FocusControls from './2d/FocusControls'
+import MobileControls from './2d/MobileControls'
+import WorkspaceOverlay from './2d/WorkspaceOverlay'
+import Rulers from './2d/Rulers'
+import RoomsLayer from './2d/RoomsLayer'
+import DraftRect from './2d/DraftRect'
+import ConstraintModal from './2d/ConstraintModal'
+import ConfirmDeleteModal from './2d/ConfirmDeleteModal'
 
 const MIN_DRAW_SIZE = 16
 const MIN_ROOM_SIZE = 1
@@ -9,39 +25,7 @@ const MAX_VIEW_ZOOM = 4
 const RULER_GUTTER = 18
 const GRID_UNIT_METERS = 1
 
-const RESIZE_HANDLES = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
-const RULER_STEPS = [0.5, 1, 2, 5, 10, 20, 50, 100]
-
-const toWorldFromScreen = (point, rect, pixelsPerMeter, view) => ({
-  x: view.x + (point.x - rect.left - rect.width / 2) / (pixelsPerMeter * view.zoom),
-  z: view.z + (point.y - rect.top - rect.height / 2) / (pixelsPerMeter * view.zoom),
-})
-
-const toScreenFromWorld = (point, rect, pixelsPerMeter, view) => ({
-  x: rect.width / 2 + (point.x - view.x) * pixelsPerMeter * view.zoom,
-  y: rect.height / 2 + (point.z - view.z) * pixelsPerMeter * view.zoom,
-})
-
-const roundToStep = (value, step) => {
-  if (!Number.isFinite(step) || step <= 0) {
-    return value
-  }
-
-  return Math.round(value / step) * step
-}
-
-const pickRulerStep = (scale) => {
-  const targetPx = 80
-  for (const step of RULER_STEPS) {
-    if (step * scale >= targetPx) {
-      return step
-    }
-  }
-
-  return RULER_STEPS[RULER_STEPS.length - 1]
-}
-
-export default function FloorMapCanvas({ isTouchDevice = false }) {
+export default function Canvas2D({ isTouchDevice = false }) {
   const floorPlan = useSceneStore((state) => state.floorPlan)
   const createRoom = useSceneStore((state) => state.createRoom)
   const moveRoom = useSceneStore((state) => state.moveRoom)
@@ -645,53 +629,24 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
   }, [canvas.depth, canvasRect, pixelsPerMeter, rulerStep, view.z, view.zoom])
 
   return (
-    <section className={`floor-map-shell ${showTopChrome ? '' : 'floor-map-shell-top-hidden'}`}>
-      {showTopChrome && (
-        <header className="floor-map-header">
-          <h1 className="floor-map-title">
-            <span className="icon-badge">
-              <ControlIcon name="map" size={16} />
-            </span>
-            Floor Planner
-          </h1>
-          <p className="floor-map-description">
-            1 meter equals {pixelsPerMeter} pixels. Drag on empty space to draw, drag a room to move,
-            and collisions or boundary violations are blocked. Snapping is fixed to a 1m x 1m grid for
-            precise alignment. Use arrows or WASD to nudge, hold Shift for bigger steps.
-          </p>
-
-          <div className="planner-pill-row">
-            <span className="planner-pill">
-              <ControlIcon name="workspace" size={14} />
-              {floorPlan.snapEnabled ? `Snap ${activeSnapStep.toFixed(2)}m` : 'Snap Off'}
-            </span>
-            <span className="planner-pill">
-              <ControlIcon name="pan" size={14} />
-              Shift + Drag to Pan
-            </span>
-            <span className="planner-pill">
-              <ControlIcon name="zoom" size={14} />
-              Wheel to Zoom
-            </span>
+    <CanvasShell
+      showTopChrome={showTopChrome}
+      pixelsPerMeter={pixelsPerMeter}
+      activeSnapStep={activeSnapStep}
+      snapEnabled={floorPlan.snapEnabled}
+      view={view}
+      canvas={canvas}
+      onResetView={resetView}
+      onFitCanvas={fitCanvasToView}
+      footnote={
+        showBottomChrome ? (
+          <div className="floor-map-footnote">
+            Canvas: {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
+            {floorPlan.constraintMessage ? ` | ${floorPlan.constraintMessage}` : ''}
           </div>
-
-          <div className="floor-map-view-tools">
-            <button type="button" onClick={() => setView({ x: 0, z: 0, zoom: 1 })}>
-              <ControlIcon name="reset" size={14} />
-              Reset View
-            </button>
-            <button type="button" onClick={fitCanvasToView}>
-              <ControlIcon name="workspace" size={14} />
-              Fit Canvas
-            </button>
-            <span className="floor-map-readout">
-              <ControlIcon name="zoom" size={13} />
-              Zoom: {view.zoom.toFixed(2)}x | Pan: {(view.x + canvas.width / 2).toFixed(1)}m, {(view.z + canvas.depth / 2).toFixed(1)}m
-            </span>
-          </div>
-        </header>
-      )}
-
+        ) : null
+      }
+    >
       <div className={`floor-map-main ${showBottomChrome ? '' : 'floor-map-main-bottom-hidden'}`}>
         <div
           ref={canvasRef}
@@ -714,157 +669,37 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
           role="application"
           aria-label="Floor map drawing canvas"
         >
-          <div
-            className="floor-map-canvas-toolbar"
-            role="toolbar"
-            aria-label="Canvas visibility controls"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              className={`canvas-tool-btn ${showTopChrome ? '' : 'active'}`}
-              onClick={() => setShowTopChrome((value) => !value)}
-              title={showTopChrome ? 'Hide top panel' : 'Show top panel'}
-              aria-label={showTopChrome ? 'Hide top panel' : 'Show top panel'}
-            >
-              <ControlIcon name={showTopChrome ? 'collapse-top' : 'expand-top'} size={14} />
-            </button>
-
-            <button
-              type="button"
-              className={`canvas-tool-btn ${showBottomChrome ? '' : 'active'}`}
-              onClick={() => setShowBottomChrome((value) => !value)}
-              title={showBottomChrome ? 'Hide bottom panel' : 'Show bottom panel'}
-              aria-label={showBottomChrome ? 'Hide bottom panel' : 'Show bottom panel'}
-            >
-              <ControlIcon name={showBottomChrome ? 'collapse-bottom' : 'expand-bottom'} size={14} />
-            </button>
-
-            <button
-              type="button"
-              className={`canvas-tool-btn ${canvasFocusMode ? 'active' : ''}`}
-              onClick={toggleCanvasFocus}
-              title={canvasFocusMode ? 'Restore all planner panels' : 'Focus canvas only'}
-              aria-label={canvasFocusMode ? 'Restore all planner panels' : 'Focus canvas only'}
-            >
-              <ControlIcon name={canvasFocusMode ? 'focus-off' : 'focus-on'} size={14} />
-            </button>
-          </div>
+          <CanvasToolbar
+            showTopChrome={showTopChrome}
+            showBottomChrome={showBottomChrome}
+            canvasFocusMode={canvasFocusMode}
+            onToggleTop={() => setShowTopChrome((value) => !value)}
+            onToggleBottom={() => setShowBottomChrome((value) => !value)}
+            onToggleFocus={toggleCanvasFocus}
+          />
 
           {canvasFocusMode && (
-            <div
-              className="floor-map-focus-controls"
-              role="toolbar"
-              aria-label="Canvas focus quick actions"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="focus-action-btn"
-                onClick={() => zoomBy(1.2)}
-                title="Zoom in"
-                aria-label="Zoom in"
-              >
-                <ControlIcon name="zoom-in" size={14} />
-              </button>
-
-              <button
-                type="button"
-                className="focus-action-btn"
-                onClick={() => zoomBy(0.84)}
-                title="Zoom out"
-                aria-label="Zoom out"
-              >
-                <ControlIcon name="zoom-out" size={14} />
-              </button>
-
-              <button
-                type="button"
-                className="focus-action-btn"
-                onClick={() => setView({ x: 0, z: 0, zoom: 1 })}
-                title="Reset view"
-                aria-label="Reset view"
-              >
-                <ControlIcon name="reset" size={14} />
-              </button>
-
-              <button
-                type="button"
-                className="focus-action-btn"
-                onClick={centerSelectedRoom}
-                title="Center selected room"
-                aria-label="Center selected room"
-                disabled={!selectedRoom}
-              >
-                <ControlIcon name="rooms" size={14} />
-              </button>
-
-              <button
-                type="button"
-                className="focus-action-btn"
-                onClick={quickVisualize}
-                title="Visualize selected room"
-                aria-label="Visualize selected room"
-                disabled={!selectedRoom}
-              >
-                <ControlIcon name="visualize" size={14} />
-              </button>
-
-              <button
-                type="button"
-                className="focus-action-btn active"
-                onClick={toggleCanvasFocus}
-                title="Restore hidden panels"
-                aria-label="Restore hidden panels"
-              >
-                <ControlIcon name="focus-off" size={14} />
-              </button>
-            </div>
+            <FocusControls
+              onZoomIn={() => zoomBy(1.2)}
+              onZoomOut={() => zoomBy(0.84)}
+              onResetView={() => setView({ x: 0, z: 0, zoom: 1 })}
+              onCenterSelected={centerSelectedRoom}
+              onQuickVisualize={quickVisualize}
+              onExitFocus={toggleCanvasFocus}
+              selectedRoom={selectedRoom}
+            />
           )}
 
           {isTouchDevice && (
-            <div
-              className="floor-map-mobile-controls"
-              role="toolbar"
-              aria-label="Mobile planner controls"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button type="button" onClick={() => panBy(0, -1)} aria-label="Pan up">
-                Up
-              </button>
-              <button type="button" onClick={() => panBy(-1, 0)} aria-label="Pan left">
-                Left
-              </button>
-              <button type="button" onClick={resetView} aria-label="Reset view">
-                Reset
-              </button>
-              <button type="button" onClick={() => panBy(1, 0)} aria-label="Pan right">
-                Right
-              </button>
-              <button type="button" onClick={() => panBy(0, 1)} aria-label="Pan down">
-                Down
-              </button>
-              <button type="button" onClick={() => zoomBy(1.2)} aria-label="Zoom in">
-                +
-              </button>
-              <button type="button" onClick={() => zoomBy(0.84)} aria-label="Zoom out">
-                -
-              </button>
-              <button type="button" onClick={fitCanvasToView} aria-label="Fit canvas">
-                Fit
-              </button>
-              <button
-                type="button"
-                onClick={quickVisualize}
-                disabled={!selectedRoom}
-                aria-label="Visualize selected room"
-              >
-                3D
-              </button>
-            </div>
+            <MobileControls
+              onPanBy={panBy}
+              onResetView={resetView}
+              onZoomIn={() => zoomBy(1.2)}
+              onZoomOut={() => zoomBy(0.84)}
+              onFitCanvas={fitCanvasToView}
+              onQuickVisualize={quickVisualize}
+              selectedRoom={selectedRoom}
+            />
           )}
 
           {canvasRect && (() => {
@@ -880,155 +715,45 @@ export default function FloorMapCanvas({ isTouchDevice = false }) {
             const gridOffsetY = gridOffsets.y - topLeft.y
 
             return (
-              <div
-                className="floor-map-workspace"
-                style={{
-                  left: `${topLeft.x}px`,
-                  top: `${topLeft.y}px`,
-                  width: `${width}px`,
-                  height: `${height}px`,
-                  '--grid-offset-x': `${gridOffsetX}px`,
-                  '--grid-offset-y': `${gridOffsetY}px`,
-                }}
-                aria-hidden="true"
-              >
-                <div className="floor-map-grid" />
-                <span className="floor-map-workspace-label">
-                  Canvas {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
-                </span>
-              </div>
+              <WorkspaceOverlay
+                topLeft={topLeft}
+                width={width}
+                height={height}
+                gridOffsetX={gridOffsetX}
+                gridOffsetY={gridOffsetY}
+                canvas={canvas}
+              />
             )
           })()}
 
-          <div className="floor-map-ruler floor-map-ruler-x" aria-hidden="true">
-            {xTicks.map((tick) => (
-              <span key={`x-${tick.value}`} style={{ left: `${tick.left}px` }}>
-                <i />
-                <strong>{tick.value}m</strong>
-              </span>
-            ))}
-          </div>
+          <Rulers xTicks={xTicks} zTicks={zTicks} />
 
-          <div className="floor-map-ruler floor-map-ruler-z" aria-hidden="true">
-            {zTicks.map((tick) => (
-              <span key={`z-${tick.value}`} style={{ top: `${tick.top}px` }}>
-                <i />
-                <strong>{tick.value}m</strong>
-              </span>
-            ))}
-          </div>
+          <RoomsLayer
+            rooms={floorPlan.rooms}
+            selectedRoomId={floorPlan.selectedRoomId}
+            canvasRect={canvasRect}
+            pixelsPerMeter={pixelsPerMeter}
+            view={view}
+            toScreenFromWorld={toScreenFromWorld}
+            onSelectRoom={selectRoom}
+            onBeginDrag={beginRoomDrag}
+            onBeginResize={beginRoomResize}
+          />
 
-          {floorPlan.rooms.map((room) => {
-            if (!canvasRect) {
-              return null
-            }
-
-            const topLeft = toScreenFromWorld({ x: room.x, z: room.z }, canvasRect, pixelsPerMeter, view)
-
-            return (
-              <button
-                key={room.id}
-                type="button"
-                className={`room-rect ${room.id === floorPlan.selectedRoomId ? 'selected' : ''}`}
-                style={{
-                  left: `${topLeft.x}px`,
-                  top: `${topLeft.y}px`,
-                  width: `${room.width * pixelsPerMeter * view.zoom}px`,
-                  height: `${room.depth * pixelsPerMeter * view.zoom}px`,
-                }}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  selectRoom(room.id)
-                }}
-                onPointerDown={(event) => beginRoomDrag(event, room)}
-                title={`${room.name}: ${room.width.toFixed(1)}m x ${room.depth.toFixed(1)}m`}
-              >
-                <span>{room.name}</span>
-                <small>
-                  {room.width.toFixed(1)}m x {room.depth.toFixed(1)}m
-                </small>
-
-                {room.id === floorPlan.selectedRoomId &&
-                  RESIZE_HANDLES.map((handle) => (
-                    <i
-                      key={`${room.id}-${handle}`}
-                      className={`resize-handle resize-${handle}`}
-                      onPointerDown={(event) => beginRoomResize(event, room, handle)}
-                      aria-hidden="true"
-                    />
-                  ))}
-              </button>
-            )
-          })}
-
-          {draftRect && (
-            <div
-              className="draft-rect"
-              style={{
-                left: `${Math.min(draftRect.start.x, draftRect.current.x) - draftRect.rect.left}px`,
-                top: `${Math.min(draftRect.start.y, draftRect.current.y) - draftRect.rect.top}px`,
-                width: `${Math.abs(draftRect.current.x - draftRect.start.x)}px`,
-                height: `${Math.abs(draftRect.current.y - draftRect.start.y)}px`,
-              }}
-            />
-          )}
+          {draftRect && <DraftRect draftRect={draftRect} />}
         </div>
 
-        {showBottomChrome && (
-          <>
-            <div className="floor-map-footnote">
-              Canvas: {canvas.width.toFixed(1)}m x {canvas.depth.toFixed(1)}m
-              {floorPlan.constraintMessage ? ` | ${floorPlan.constraintMessage}` : ''}
-            </div>
-          </>
-        )}
       </div>
 
-      {floorPlan.constraintMessage && (
-        <div className="planner-modal-overlay" role="dialog" aria-modal="true">
-          <div className="planner-modal-card">
-            <h3>Action blocked</h3>
-            <p>{floorPlan.constraintMessage}</p>
-            <div className="planner-modal-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  clearConstraintMessage()
-                }}
-              >
-                OK
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDeleteRoomId && (
-        <div className="planner-modal-overlay" role="dialog" aria-modal="true">
-          <div className="planner-modal-card">
-            <h3>Delete room?</h3>
-            <p>Removing this room will also remove all furniture assigned to it.</p>
-            <div className="planner-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setConfirmDeleteRoomId(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  removeRoom(confirmDeleteRoomId)
-                  setConfirmDeleteRoomId(null)
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+      <ConstraintModal message={floorPlan.constraintMessage} onDismiss={clearConstraintMessage} />
+      <ConfirmDeleteModal
+        roomId={confirmDeleteRoomId}
+        onCancel={() => setConfirmDeleteRoomId(null)}
+        onConfirm={(roomId) => {
+          removeRoom(roomId)
+          setConfirmDeleteRoomId(null)
+        }}
+      />
+    </CanvasShell>
   )
 }

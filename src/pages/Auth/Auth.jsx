@@ -1,10 +1,12 @@
+// Authentication pages (login/register).
 import React, { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Lock, Mail, UserMinus } from 'lucide-react'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../firebase/firebase'
-import ThemeToggle from '../components/ThemeToggle'
+import { auth } from '@appFirebase/firebase'
+import ThemeToggle from '@components/ThemeToggle'
+import './Auth.css'
 
 const infoItems = [
   'Studio-grade dark UI with fluid transitions',
@@ -14,14 +16,14 @@ const infoItems = [
 
 const fieldMotion = {
   rest: {
-    borderColor: 'rgba(148, 163, 184, 0.2)',
-    boxShadow: '0 0 0 0 rgba(45, 212, 191, 0)',
+    borderColor: '#e8e0d6',
+    boxShadow: '0 0 0 0 transparent',
     y: 0,
   },
   active: {
-    borderColor: 'rgba(45, 212, 191, 0.55)',
-    boxShadow: '0 0 0 3px rgba(45, 212, 191, 0.12)',
-    y: -1,
+    borderColor: '#c07a45',
+    boxShadow: '0 0 0 0 transparent',
+    y: 0,
   },
 }
 
@@ -35,11 +37,11 @@ const AuthField = ({ icon, label, ...props }) => {
       initial="rest"
       animate={isFocused ? 'active' : 'rest'}
       transition={{ duration: 0.22, ease: 'easeOut' }}
-      className="surface-glass-soft flex items-center gap-3 rounded-2xl border px-4 py-3"
+      className="surface-glass-soft flex items-center gap-3 rounded-lg border px-4 py-3"
     >
-      <Icon size={18} className="text-slate-400" />
+      <Icon size={18} className="text-[#8a7260]" />
       <div className="min-w-0 flex-1">
-        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</span>
+        <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.14em] text-[#c4b09a]">{label}</span>
         <input
           {...props}
           onFocus={(event) => {
@@ -50,7 +52,7 @@ const AuthField = ({ icon, label, ...props }) => {
             setIsFocused(false)
             props.onBlur?.(event)
           }}
-          className="w-full bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none"
+          className="w-full bg-transparent text-sm text-[#3a2e24] placeholder:text-[#a8937e] focus:outline-none"
         />
       </div>
     </motion.label>
@@ -60,9 +62,7 @@ const AuthField = ({ icon, label, ...props }) => {
 const AuthShell = ({ title, subtitle, children, isRegister }) => {
   return (
     <div className="page-shell relative min-h-screen overflow-hidden">
-      <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.16]" />
-      <div className="pointer-events-none absolute -left-20 top-8 h-64 w-64 rounded-full bg-cyan-400/15 blur-[120px]" />
-      <div className="pointer-events-none absolute -right-24 bottom-0 h-64 w-64 rounded-full bg-emerald-300/10 blur-[130px]" />
+      <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.2]" />
 
       <div className="absolute right-5 top-5 z-20">
         <ThemeToggle />
@@ -76,18 +76,18 @@ const AuthShell = ({ title, subtitle, children, isRegister }) => {
           className="surface-glass hidden h-full p-8 lg:flex lg:flex-col lg:justify-between"
         >
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-100/85">Roometry Platform</p>
-            <h1 className="mt-4 max-w-md text-4xl font-semibold leading-tight text-white">
+            <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#c4b09a]">Roometry Platform</p>
+            <h1 className="mt-4 max-w-md text-4xl font-medium leading-tight text-[#3a2e24]">
               A focused workspace for serious interior planning.
             </h1>
-            <p className="mt-4 max-w-md text-base leading-relaxed text-slate-300">
+            <p className="mt-4 max-w-md text-base leading-relaxed text-[#8a7260]">
               Keep creative momentum high with an interface that feels intentional, responsive, and premium at every step.
             </p>
           </div>
 
           <div className="space-y-3">
             {infoItems.map((item) => (
-              <div key={item} className="surface-glass-soft px-4 py-3 text-sm text-slate-200">
+              <div key={item} className="surface-glass-soft px-4 py-3 text-sm text-[#8a7260]">
                 {item}
               </div>
             ))}
@@ -101,25 +101,25 @@ const AuthShell = ({ title, subtitle, children, isRegister }) => {
           className="surface-glass p-6 sm:p-8"
         >
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100/90">Secure Access</p>
-            <h2 className="mt-2 text-3xl font-semibold text-white">{title}</h2>
-            <p className="mt-2 text-sm text-slate-300">{subtitle}</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#c4b09a]">Secure Access</p>
+            <h2 className="mt-2 text-3xl font-medium text-[#3a2e24]">{title}</h2>
+            <p className="mt-2 text-sm text-[#8a7260]">{subtitle}</p>
           </div>
 
           <div className="mt-7">{children}</div>
 
-          <p className="mt-6 text-center text-sm text-slate-300">
+          <p className="mt-6 text-center text-sm text-[#8a7260]">
             {isRegister ? (
               <>
                 Already have an account?{' '}
-                <Link to="/login" className="font-semibold text-cyan-100 transition hover:text-cyan-200">
+                <Link to="/login" className="font-medium text-[#c07a45] transition hover:text-[#a8632e]">
                   Sign in
                 </Link>
               </>
             ) : (
               <>
                 New here?{' '}
-                <Link to="/register" className="font-semibold text-cyan-100 transition hover:text-cyan-200">
+                <Link to="/register" className="font-medium text-[#c07a45] transition hover:text-[#a8632e]">
                   Create an account
                 </Link>
               </>
@@ -162,7 +162,7 @@ export const Login = () => {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+              className="rounded-lg border border-[#e4c4c4] bg-[#f9eded] px-4 py-3 text-sm text-[#7a3c3c]"
             >
               {error}
             </motion.div>
@@ -192,7 +192,7 @@ export const Login = () => {
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-75"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#c07a45] px-4 py-3 text-sm font-medium text-white transition hover:bg-[#a8632e] disabled:cursor-not-allowed disabled:opacity-75"
         >
           {submitting ? 'Signing in...' : 'Sign in'}
           <ArrowRight size={16} />
@@ -238,7 +238,7 @@ export const Register = () => {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="rounded-xl border border-rose-300/30 bg-rose-300/10 px-4 py-3 text-sm text-rose-100"
+              className="rounded-lg border border-[#e4c4c4] bg-[#f9eded] px-4 py-3 text-sm text-[#7a3c3c]"
             >
               {error}
             </motion.div>
@@ -269,21 +269,21 @@ export const Register = () => {
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-75"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#c07a45] px-4 py-3 text-sm font-medium text-white transition hover:bg-[#a8632e] disabled:cursor-not-allowed disabled:opacity-75"
         >
           {submitting ? 'Creating account...' : 'Create account'}
           <ArrowRight size={16} />
         </button>
 
-        <div className="relative py-1 text-center text-xs uppercase tracking-[0.2em] text-slate-500">
+        <div className="relative py-1 text-center text-[10px] uppercase tracking-[0.2em] text-[#c4b09a]">
           <span className="relative z-10 bg-transparent px-2">or</span>
-          <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-slate-700/70" />
+          <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-[#ede6dc]" />
         </div>
 
         <button
           type="button"
           onClick={handleGuestMode}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-100 transition hover:border-cyan-200/55 hover:bg-white/[0.08]"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-3 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
         >
           <UserMinus size={16} />
           Continue as guest
