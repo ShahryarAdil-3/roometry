@@ -1,4 +1,4 @@
-// Header section for the 2D floor planner.
+ /// Header section for the 2D floor planner.
 import { ControlIcon } from '@components/ui/ControlIcons'
 
 export default function CanvasHeader({

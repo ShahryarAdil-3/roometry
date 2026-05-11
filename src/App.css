@@ -38,25 +38,63 @@
 
 .app-topbar {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 148px;
+  right: 0;
+  left: auto;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: flex-end;
+  gap: 6px;
   z-index: 40;
 }
 
-.app-primary-actions {
-  display: inline-flex;
+.app-topbar-handle {
+  width: 22px;
+  height: 48px;
+  border-radius: 999px 0 0 999px;
+  border: 1px solid rgba(164, 210, 238, 0.45);
+  background: rgba(17, 29, 40, 0.88);
+  color: #ecf4fb;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+.app-topbar-tray {
+  --tray-peek: 10px;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(160, 206, 234, 0.35);
+  background: rgba(17, 29, 40, 0.8);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  transform: translateX(calc(100% - var(--tray-peek)));
+  transition: transform 200ms ease;
+}
+
+.app-topbar:hover .app-topbar-tray,
+.app-topbar.open .app-topbar-tray,
+.app-topbar:focus-within .app-topbar-tray {
+  transform: translateX(0);
+}
+
+.app-primary-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
 .editor-action-btn {
   width: auto !important;
-  padding: 9px 12px !important;
+  padding: 8px 10px !important;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: linear-gradient(165deg, rgba(18, 29, 40, 0.88), rgba(16, 23, 33, 0.88));
@@ -147,13 +185,62 @@
 .toggle-controls-btn {
   position: relative;
   z-index: 40;
-  padding: 9px 12px;
+  padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: linear-gradient(165deg, rgba(18, 29, 40, 0.86), rgba(17, 23, 32, 0.86));
   color: #f5f7fa;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
   transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.app-topbar .editor-action-btn,
+.app-topbar .toggle-controls-btn,
+.app-topbar .theme-toggle {
+  font-size: 11px;
+}
+
+.app-topbar .icon-only {
+  width: 36px !important;
+  height: 36px;
+  padding: 0 !important;
+  display: grid;
+  place-items: center;
+}
+
+.app-topbar .theme-toggle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 820px) {
+  .app-topbar {
+    top: 136px;
+    right: 0;
+    gap: 6px;
+  }
+
+  .app-topbar-handle {
+    width: 20px;
+    height: 44px;
+  }
+
+  .app-topbar .icon-only,
+  .app-topbar .theme-toggle {
+    width: 32px !important;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .app-topbar .editor-action-btn,
+  .app-topbar .toggle-controls-btn,
+  .app-topbar .theme-toggle {
+    font-size: 10px;
+  }
 }
 
 .toggle-controls-btn:hover {
@@ -410,34 +497,38 @@
 .project-setup-card h3 {
   margin: 0;
   font-size: 22px;
-  color: #f3fbff;
+  color: #14abf7;
 }
 
 .project-setup-card p {
   margin: 0;
   font-size: 13px;
-  color: rgba(212, 233, 247, 0.9);
+  color: rgba(140, 204, 250, 0.95);
 }
 
 .project-setup-card label {
   display: grid;
   gap: 6px;
   font-size: 12px;
-  color: rgba(212, 233, 247, 0.95);
+  color: rgba(112, 203, 255, 0.98);
 }
 
 .project-setup-card input {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid rgba(172, 211, 234, 0.35);
-  background: rgba(255, 255, 255, 0.08);
-  color: #f2fbff;
+  border: 1px solid rgba(146, 214, 255, 0.7);
+  background: rgba(133, 192, 231, 0.28);
+  color: #f0fbff;
   padding: 9px 10px;
 }
 
 .project-setup-card input:focus {
-  outline: 2px solid rgba(145, 221, 255, 0.4);
+  outline: 2px solid rgba(88, 197, 255, 0.7);
   outline-offset: 1px;
+}
+
+.project-setup-card input::placeholder {
+  color: rgba(205, 237, 255, 0.85);
 }
 
 .project-setup-grid {

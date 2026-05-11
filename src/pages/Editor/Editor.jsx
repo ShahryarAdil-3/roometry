@@ -13,13 +13,6 @@ import { fetchProjectSnapshot, saveProjectSnapshot } from '@appFirebase/projects
 import '@/App.css'
 import './Editor.css'
 
-const STYLE_VARIANTS = [
-  { id: 'minimal', label: 'Minimal', icon: 'theme-minimal' },
-  { id: 'futuristic', label: 'Futuristic', icon: 'theme-futuristic' },
-  { id: 'cad', label: 'CAD', icon: 'theme-cad' },
-]
-
-const STYLE_VARIANT_STORAGE_KEY = 'roometry-style-variant'
 const GUEST_MODE_STORAGE_KEY = 'roometry_guest_mode'
 const GUEST_PROJECTS_STORAGE_KEY = 'roometry_guest_rooms'
 const GUIDED_MODE_STORAGE_KEY = 'roometry-guided-mode'
@@ -127,19 +120,6 @@ const applySnapshotToStore = (snapshot) => {
   return true
 }
 
-const resolveInitialStyleVariant = () => {
-  if (typeof window === 'undefined') {
-    return 'futuristic'
-  }
-
-  const savedVariant = window.localStorage.getItem(STYLE_VARIANT_STORAGE_KEY)
-  if (savedVariant && STYLE_VARIANTS.some((variant) => variant.id === savedVariant)) {
-    return savedVariant
-  }
-
-  return 'futuristic'
-}
-
 function App() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -196,7 +176,8 @@ function App() {
 
   const [showControls, setShowControls] = useState(true)
   const [isFirstPersonLocked, setIsFirstPersonLocked] = useState(false)
-  const [styleVariant, setStyleVariant] = useState(resolveInitialStyleVariant)
+  const [isTopbarOpen, setIsTopbarOpen] = useState(false)
+  const styleVariant = 'minimal'
   const [authUser, setAuthUser] = useState(() => auth.currentUser)
   const [activeProjectId, setActiveProjectId] = useState(queryProjectId)
   const [isProjectLoading, setIsProjectLoading] = useState(false)
@@ -272,10 +253,6 @@ function App() {
     setCameraMode('orbit')
     setUiMode('visualize')
   }
-
-  useEffect(() => {
-    window.localStorage.setItem(STYLE_VARIANT_STORAGE_KEY, styleVariant)
-  }, [styleVariant])
 
   useEffect(() => {
     setActiveProjectId(queryProjectId)
@@ -536,69 +513,66 @@ function App() {
       </div>
 
       <div className="app-main">
-        <div className="app-topbar">
-          <div className="app-primary-actions" role="group" aria-label="Project actions">
-            <button type="button" className="editor-action-btn" onClick={goToDashboard}>
-              <span className="icon-label">
-                <ControlIcon name="planner" size={14} />
-                Dashboard
-              </span>
+        <div
+          className={`app-topbar ${isTopbarOpen ? 'open' : ''}`}
+          role="toolbar"
+          aria-label="Editor actions"
+        >
+          <button
+            type="button"
+            className="app-topbar-handle"
+            onClick={() => setIsTopbarOpen((current) => !current)}
+            aria-label={isTopbarOpen ? 'Hide action tray' : 'Show action tray'}
+            title={isTopbarOpen ? 'Hide actions' : 'Show actions'}
+          >
+            <ControlIcon name={isTopbarOpen ? 'hide' : 'show'} size={14} />
+          </button>
+          <div className="app-topbar-tray">
+            <div className="app-primary-actions" role="group" aria-label="Project actions">
+              <button
+                type="button"
+                className="editor-action-btn icon-only"
+                onClick={goToDashboard}
+                aria-label="Open dashboard"
+                title="Dashboard"
+              >
+                <ControlIcon name="planner" size={16} />
+              </button>
+
+              <button
+                type="button"
+                className={`editor-action-btn icon-only save-btn ${saveState === 'success' ? 'saved' : ''}`}
+                onClick={handleSaveProject}
+                disabled={saveState === 'saving' || isProjectLoading}
+                aria-label={saveState === 'saving' ? 'Saving project' : 'Save project'}
+                title={saveState === 'saving' ? 'Saving...' : 'Save project'}
+              >
+                <ControlIcon name="preview" size={16} />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="toggle-controls-btn icon-only"
+              onClick={() => setShowControls((value) => !value)}
+              aria-label={showControls ? 'Hide controls' : 'Show controls'}
+              title={showControls ? 'Hide controls' : 'Show controls'}
+            >
+              <ControlIcon name={showControls ? 'hide' : 'show'} size={16} />
             </button>
 
             <button
               type="button"
-              className={`editor-action-btn save-btn ${saveState === 'success' ? 'saved' : ''}`}
-              onClick={handleSaveProject}
-              disabled={saveState === 'saving' || isProjectLoading}
+              className="editor-action-btn icon-only"
+              onClick={() => setShowGuidedMode(true)}
+              aria-label="Show tips"
+              title="Tips"
             >
-              <span className="icon-label">
-                <ControlIcon name="preview" size={14} />
-                {saveState === 'saving' ? 'Saving...' : 'Save Project'}
-              </span>
+              <ControlIcon name="help" size={16} />
             </button>
-          </div>
 
-          <button
-            type="button"
-            className="toggle-controls-btn"
-            onClick={() => setShowControls((value) => !value)}
-          >
-            <span className="icon-label">
-              <ControlIcon name={showControls ? 'hide' : 'show'} size={14} />
-              {showControls ? 'Hide' : 'Controls'}
-            </span>
-          </button>
-
-          <div className="style-variant-dock" role="group" aria-label="Style variants">
-            <span className="style-variant-label">
-              <ControlIcon name="palette" size={13} />
-              Style
-            </span>
-            {STYLE_VARIANTS.map((variant) => (
-              <button
-                key={variant.id}
-                type="button"
-                className={`style-variant-btn ${styleVariant === variant.id ? 'active' : ''}`}
-                onClick={() => setStyleVariant(variant.id)}
-                title={`Switch to ${variant.label} theme`}
-                aria-label={`Switch to ${variant.label} theme`}
-              >
-                <ControlIcon name={variant.icon} size={13} />
-                {variant.label}
-              </button>
-            ))}
+            <ThemeToggle variant="editor" showLabel={false} />
           </div>
-          <button
-            type="button"
-            className="editor-action-btn"
-            onClick={() => setShowGuidedMode(true)}
-          >
-            <span className="icon-label">
-              <ControlIcon name="help" size={14} />
-              Tips
-            </span>
-          </button>
-          <ThemeToggle variant="editor" />
         </div>
 
         {!!saveMessage && (
