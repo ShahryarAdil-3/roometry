@@ -1,253 +1,651 @@
-// Landing page layout.
-import React from 'react'
-import { motion } from 'framer-motion'
+import React, { useState, useEffect, useRef } from 'react'
+import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Cuboid, Map, Wand2 } from 'lucide-react'
+import { ArrowRight, Cuboid, Map, Wand2, Sparkles, Users, LayoutDashboard, MousePointer2 } from 'lucide-react'
 import ThemeToggle from '@components/ThemeToggle'
 import './Landing.css'
 
-const modules = [
-  {
-    title: 'Precision 2D Planning',
-    body: 'Draft room shells with clean snapping, exact dimensions, and immediate visual feedback. Iterate layouts quickly without losing structural precision.',
-    badge: '2D Core',
-    icon: Map,
-    direction: 'left',
-    points: ['Grid-first measurements', 'Live wall alignment', 'Fast concept iteration'],
-  },
-  {
-    title: 'Smart Spatial Layering',
-    body: 'Add furniture, openings, and design accents as modular layers. Keep everything organized while preserving motion-friendly performance.',
-    badge: 'Layout Engine',
-    icon: Cuboid,
-    direction: 'right',
-    points: ['Component-based scene blocks', 'Visual hierarchy controls', 'Editable design presets'],
-  },
-  {
-    title: 'Immersive 3D Reveal',
-    body: 'Transform your floor plan into a smooth 3D experience in one tap. Validate proportions, flow, and atmosphere before committing to real-world changes.',
-    badge: '3D Visualization',
-    icon: Wand2,
-    direction: 'left',
-    points: ['Instant scene conversion', 'Interactive walkthrough view', 'Presentation-ready visuals'],
-  },
-]
+// Floating particles for background
+const FloatingParticles = () => {
+  const particles = Array.from({ length: 20 })
 
-const flow = [
-  {
-    title: 'Draft In 2D',
-    detail: 'Sketch core walls and circulation with measurable constraints.',
-    icon: Map,
-  },
-  {
-    title: 'Layer Objects',
-    detail: 'Place furniture and openings to shape how the room behaves.',
-    icon: Cuboid,
-  },
-  {
-    title: 'Visualize In 3D',
-    detail: 'Switch to immersive mode to review scale, light, and composition.',
-    icon: Wand2,
-  },
-]
-
-const heroVariants = {
-  hidden: { opacity: 0, y: 34 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.9,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
+  return (
+    <div className="particles-container">
+      {particles.map((_, i) => (
+        <motion.div
+          key={i}
+          className="particle"
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{
+            opacity: [0.2, 0.4, 0.2],
+            scale: [0.5, 1, 0.5],
+            x: [0, Math.random() * 200 - 100, 0],
+            y: [0, Math.random() * 200 - 100, 0]
+          }}
+          transition={{
+            duration: 4 + Math.random() * 4,
+            repeat: Infinity,
+            ease: 'easeInOut'
+          }}
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            delay: `${Math.random() * 2}s`
+          }}
+        />
+      ))}
+    </div>
+  )
 }
 
+// Animated 3D preview card
+const PreviewCard = ({ title, description, icon: Icon, delay = 0 }) => {
+  const [isHovered, setIsHovered] = useState(false)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, delay, ease: [0.22, 1, 0.36, 1] }}
+      whileHover={{ scale: 1.02, y: -5 }}
+      className="preview-card"
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+    >
+      <div className="preview-card-glow" />
+      <div className="preview-card-content">
+        <motion.div
+          className="preview-card-icon"
+          animate={{
+            rotate: isHovered ? [0, 5, -5, 0] : 0,
+            scale: isHovered ? 1.1 : 1
+          }}
+          transition={{ duration: 0.3 }}
+        >
+          <Icon size={28} />
+        </motion.div>
+        <h3 className="preview-card-title">{title}</h3>
+        <p className="preview-card-description">{description}</p>
+        <motion.div
+          className="preview-card-arrow"
+          animate={{ x: isHovered ? 5 : 0 }}
+        >
+          <ArrowRight size={18} />
+        </motion.div>
+      </div>
+    </motion.div>
+  )
+}
+
+// Feature section with scroll animations
+const FeatureSection = ({ children, title, subtitle }) => {
+  return (
+    <motion.section
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.8 }}
+      className="feature-section"
+    >
+      <div className="feature-header">
+        <motion.p
+          className="feature-subtitle"
+          initial={{ opacity: 0, x: -20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.1 }}
+        >
+          {subtitle}
+        </motion.p>
+        <motion.h2
+          className="feature-title"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2 }}
+        >
+          {title}
+        </motion.h2>
+      </div>
+      {children}
+    </motion.section>
+  )
+}
+
+// Interactive feature card
+const FeatureCard = ({ icon: Icon, title, description, index, delay = 0 }) => {
+  const cardRef = useRef(null)
+  const [isHovered, setIsHovered] = useState(false)
+
+  const mouseX = useMotionValue(0)
+  const mouseY = useMotionValue(0)
+
+  const springX = useSpring(mouseX, { stiffness: 500, damping: 50 })
+  const springY = useSpring(mouseY, { stiffness: 500, damping: 50 })
+
+  const handleMouseMove = (e) => {
+    if (!cardRef.current) return
+    const rect = cardRef.current.getBoundingClientRect()
+    const width = rect.width
+    const height = rect.height
+    const mouseXVal = e.clientX - rect.left - width / 2
+    const mouseYVal = e.clientY - rect.top - height / 2
+    mouseX.set(mouseXVal / width)
+    mouseY.set(mouseYVal / height)
+  }
+
+  return (
+    <motion.div
+      ref={cardRef}
+      initial={{ opacity: 0, y: 30 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ duration: 0.6, delay: delay + index * 0.1 }}
+      whileHover={{ scale: 1.03 }}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      onMouseMove={handleMouseMove}
+      className="feature-card"
+      style={{
+        transform: isHovered ?
+          `translate(${springX.get() * 20}px, ${springY.get() * 20}px) scale(1.03)` :
+          'translate(0, 0) scale(1)'
+      }}
+    >
+      <motion.div
+        className="feature-card-icon-wrapper"
+        animate={{
+          background: isHovered ? 'linear-gradient(135deg, #c07a45 0%, #a8632e 100%)' : 'linear-gradient(135deg, #fdf0e6 0%, #fde8d4 100%)',
+          color: isHovered ? '#ffffff' : '#c07a45'
+        }}
+        transition={{ duration: 0.3 }}
+      >
+        <Icon size={24} />
+      </motion.div>
+      <div className="feature-card-content">
+        <h3 className="feature-card-title">{title}</h3>
+        <p className="feature-card-description">{description}</p>
+      </div>
+    </motion.div>
+  )
+}
+
+// Hero section with animated background
+const HeroSection = () => {
+  const { scrollY } = useScroll()
+  const yPos = useTransform(scrollY, [0, 500], [0, -100])
+
+  return (
+    <section className="hero-section" style={{ y: yPos }}>
+      <FloatingParticles />
+      <div className="hero-gradient-overlay" />
+      <motion.div
+        className="hero-content"
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <motion.div
+          className="hero-badge"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Sparkles size={14} />
+          <span>Next-Gen Interior Design</span>
+        </motion.div>
+
+        <motion.h1
+          className="hero-title"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.8 }}
+        >
+          Design Spaces
+          <br />
+          <motion.span
+            className="hero-title-gradient"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4, duration: 0.8 }}
+          >
+            That Feel Real
+          </motion.span>
+        </motion.h1>
+
+        <motion.p
+          className="hero-description"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.7 }}
+        >
+          Roometry bridges the gap between 2D planning and 3D experience.
+          Create precise floor plans, then step into your design with accurate scale and dimensions.
+        </motion.p>
+
+        <motion.div
+          className="hero-buttons"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.7 }}
+        >
+          <Link to="/register" className="hero-button-primary">
+            <span>Start Designing</span>
+            <ArrowRight size={16} />
+          </Link>
+          <Link to="/dashboard" className="hero-button-secondary">
+            <LayoutDashboard size={16} />
+            <span>My Projects</span>
+          </Link>
+        </motion.div>
+
+        <motion.div
+          className="hero-features"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7, duration: 0.7 }}
+        >
+          {['Real-world scale', 'Interactive 3D', 'Collaborative'].map((feature, i) => (
+            <motion.div
+              key={feature}
+              className="hero-feature-item"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.8 + i * 0.1 }}
+            >
+              <Sparkles size={12} />
+              <span>{feature}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+      </motion.div>
+
+      <motion.div
+        className="hero-visual"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.3, duration: 0.9 }}
+      >
+        <div className="hero-visual-card">
+          <div className="hero-visual-icon">
+            <Cuboid size={32} />
+          </div>
+          <div className="hero-visual-content">
+            <h3>3D Visualization</h3>
+            <p>Step into your design</p>
+          </div>
+        </div>
+      </motion.div>
+    </section>
+  )
+}
+
+// Stats section
+const StatsSection = () => {
+  const stats = [
+    { number: '10K+', label: 'Designs Created' },
+    { number: '5K+', label: 'Active Users' },
+    { number: '100%', label: 'Real Scale' },
+    { number: '24/7', label: 'Access' }
+  ]
+
+  return (
+    <section className="stats-section">
+      <motion.div
+        className="stats-grid"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+      >
+        {stats.map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            className="stat-item"
+            initial={{ y: 20, opacity: 0 }}
+            whileInView={{ y: 0, opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: i * 0.1, duration: 0.6 }}
+          >
+            <motion.div
+              className="stat-number"
+              initial={{ scale: 0.5 }}
+              whileInView={{ scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.15, duration: 0.6, type: 'spring', stiffness: 500 }}
+            >
+              {stat.number}
+            </motion.div>
+            <p className="stat-label">{stat.label}</p>
+          </motion.div>
+        ))}
+      </motion.div>
+    </section>
+  )
+}
+
+// Workflow section
+const WorkflowSection = () => {
+  const workflowSteps = [
+    {
+      step: '01',
+      title: 'Plan in 2D',
+      description: 'Create precise floor plans with exact measurements and snapping tools',
+      icon: Map
+    },
+    {
+      step: '02',
+      title: 'Add Furniture',
+      description: 'Place realistic 3D furniture with accurate dimensions and materials',
+      icon: Cuboid
+    },
+    {
+      step: '03',
+      title: 'Experience in 3D',
+      description: 'Walk through your design with immersive first-person view',
+      icon: Wand2
+    },
+    {
+      step: '04',
+      title: 'Share & Collaborate',
+      description: 'Invite others to view and collaborate on your designs',
+      icon: Users
+    }
+  ]
+
+  return (
+    <FeatureSection
+      title="Simple, Powerful Workflow"
+      subtitle="From concept to reality"
+    >
+      <motion.div
+        className="workflow-grid"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+      >
+        {workflowSteps.map((step, i) => {
+          const Icon = step.icon
+          return (
+            <motion.div
+              key={step.step}
+              className="workflow-step"
+              initial={{ y: 30, opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, duration: 0.6 }}
+            >
+              <div className="workflow-step-number">{step.step}</div>
+              <div className="workflow-step-icon">
+                <Icon size={24} />
+              </div>
+              <h3 className="workflow-step-title">{step.title}</h3>
+              <p className="workflow-step-description">{step.description}</p>
+              {i < workflowSteps.length - 1 && (
+                <motion.div
+                  className="workflow-connector"
+                  initial={{ width: 0 }}
+                  whileInView={{ width: '100%' }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
+                />
+              )}
+            </motion.div>
+          )
+        })}
+      </motion.div>
+    </FeatureSection>
+  )
+}
+
+// Testimonials section
+const TestimonialsSection = () => {
+  const testimonials = [
+    {
+      quote: "Roometry transformed how I design spaces. The real-world scale is incredible!",
+      author: "Sarah, Interior Designer",
+      avatar: 'S'
+    },
+    {
+      quote: "Finally a tool that makes 2D planning and 3D visualization seamless.",
+      author: "Michael, Architect",
+      avatar: 'M'
+    },
+    {
+      quote: "My clients love the immersive walkthroughs. It's like being in the space before it's built.",
+      author: "Emma, Design Studio",
+      avatar: 'E'
+    }
+  ]
+
+  return (
+    <section className="testimonials-section">
+      <FeatureSection
+        title="Loved by Designers"
+        subtitle="What our users say"
+      >
+        <motion.div
+          className="testimonials-grid"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+        >
+          {testimonials.map((testimonial, i) => (
+            <motion.div
+              key={i}
+              className="testimonial-card"
+              initial={{ y: 30, opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, duration: 0.6 }}
+            >
+              <div className="testimonial-avatar">
+                {testimonial.avatar}
+              </div>
+              <blockquote className="testimonial-quote">
+                "{testimonial.quote}"
+              </blockquote>
+              <cite className="testimonial-author">{testimonial.author}</cite>
+            </motion.div>
+          ))}
+        </motion.div>
+      </FeatureSection>
+    </section>
+  )
+}
+
+// Final CTA section
+const FinalCTA = () => {
+  return (
+    <section className="final-cta">
+      <motion.div
+        className="final-cta-content"
+        initial={{ opacity: 0, y: 50 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+      >
+        <motion.h2
+          className="final-cta-title"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.1 }}
+        >
+          Ready to Design?
+        </motion.h2>
+        <motion.p
+          className="final-cta-description"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2 }}
+        >
+          Start creating beautiful, accurate interior designs today.
+        </motion.p>
+        <motion.div
+          className="final-cta-buttons"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.3 }}
+        >
+          <Link to="/register" className="final-cta-button-primary">
+            <span>Get Started Free</span>
+            <ArrowRight size={16} />
+          </Link>
+          <Link to="/dashboard" className="final-cta-button-secondary">
+            <MousePointer2 size={16} />
+            <span>Try Demo</span>
+          </Link>
+        </motion.div>
+      </motion.div>
+    </section>
+  )
+}
+
+// Main Landing component
 function Landing() {
   return (
-    <div className="page-shell relative min-h-screen overflow-x-clip">
-      <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.2]" />
-
-      <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-5 pt-6 md:px-10">
-        <Link to="/" className="flex items-center gap-3 text-[16px] font-medium tracking-[0.16em] text-[#3a2e24]">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#e8e0d6] bg-[#ffffff] text-[#c07a45]">
-            <Cuboid size={16} />
+    <div className="landing-shell">
+      {/* Header */}
+      <motion.header
+        className="landing-header"
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Link to="/" className="landing-logo">
+          <span className="landing-logo-icon">
+            <Cuboid size={20} />
           </span>
-          ROOMETRY
+          <span className="landing-logo-text">ROOMETRY</span>
         </Link>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="landing-nav">
           <ThemeToggle />
-          <Link
-            to="/login"
-            className="rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
-          >
-            Sign in
+          <Link to="/login" className="landing-nav-link">
+            Sign In
           </Link>
-          <Link
-            to="/register"
-            className="rounded-lg bg-[#c07a45] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#a8632e]"
-          >
-            Get started
+          <Link to="/register" className="landing-nav-button">
+            Get Started
           </Link>
         </div>
+      </motion.header>
 
-        <div className="md:hidden">
-          <ThemeToggle />
-        </div>
-      </header>
+      {/* Hero Section */}
+      <HeroSection />
 
-      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-90px)] w-full max-w-7xl items-center px-5 pb-12 pt-12 md:px-10 md:pt-16">
-        <div className="surface-glass relative w-full overflow-hidden px-6 py-12 md:px-10 md:py-14">
+      {/* Stats Section */}
+      <StatsSection />
 
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={heroVariants}
-            className="relative max-w-4xl"
-          >
-            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#e8e0d6] bg-[#fdf0e6] px-4 py-2 text-[10px] font-medium uppercase tracking-[0.2em] text-[#c07a45]">
-              Premium Floor Intelligence
-            </p>
-
-            <h1 className="text-4xl font-medium leading-[1.05] text-[#3a2e24] sm:text-5xl md:text-6xl lg:text-7xl">
-              Design in 2D.
-              <br />
-              <span className="text-[#c07a45]">
-                Experience it in 3D.
-              </span>
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-base leading-relaxed text-[#8a7260] sm:text-lg">
-              Roometry turns planning into a cinematic workflow. Build a floor plan with structure, then transition
-              seamlessly into an immersive 3D space with one fluid interaction.
-            </p>
-
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link
-                to="/register"
-                className="inline-flex items-center gap-2 rounded-lg bg-[#c07a45] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#a8632e]"
-              >
-                Launch Workspace
-                <ArrowRight size={16} />
-              </Link>
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-2 rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-5 py-3 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
-              >
-                Open Dashboard
-              </Link>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-10 grid gap-3 sm:grid-cols-3"
-          >
-            {['Smooth 2D grid controls', 'One-click 3D transition', 'Collaborative-ready project flow'].map((item) => (
-              <div key={item} className="surface-glass-soft px-4 py-3 text-sm text-[#8a7260]">
-                {item}
-              </div>
-            ))}
-          </motion.div>
+      {/* Preview Cards */}
+      <section className="preview-section">
+        <div className="preview-container">
+          <PreviewCard
+            title="2D Floor Planner"
+            description="Precision planning with grid snapping and exact measurements"
+            icon={Map}
+            delay={0}
+          />
+          <PreviewCard
+            title="3D Visualizer"
+            description="Immersive walkthroughs with real-world scale and lighting"
+            icon={Wand2}
+            delay={0.1}
+          />
+          <PreviewCard
+            title="Furniture Library"
+            description="Hundreds of realistic 3D models with accurate dimensions"
+            icon={Cuboid}
+            delay={0.2}
+          />
         </div>
       </section>
 
-      <section id="features" className="relative z-10 mx-auto w-full max-w-7xl px-5 py-16 md:px-10 md:py-24">
-        <div className="mb-12 max-w-3xl">
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#c4b09a]">Feature Modules</p>
-          <h2 className="mt-3 text-3xl font-medium text-[#3a2e24] sm:text-4xl md:text-5xl">
-            Crafted motion blocks that guide users naturally through your product.
-          </h2>
+      {/* Features Section */}
+      <FeatureSection
+        title="Powerful Features"
+        subtitle="Everything you need"
+      >
+        <div className="features-grid">
+          <FeatureCard
+            icon={Map}
+            title="Precise 2D Planning"
+            description="Create floor plans with exact dimensions, grid snapping, and smart alignment tools"
+            index={0}
+          />
+          <FeatureCard
+            icon={Cuboid}
+            title="Realistic 3D Models"
+            description="High-quality furniture with accurate real-world dimensions and materials"
+            index={1}
+          />
+          <FeatureCard
+            icon={Wand2}
+            title="Immersive 3D View"
+            description="Walk through your design with first-person controls and realistic lighting"
+            index={2}
+          />
+          <FeatureCard
+            icon={Users}
+            title="Collaboration"
+            description="Share designs with clients and team members for feedback and approval"
+            index={3}
+          />
+          <FeatureCard
+            icon={LayoutDashboard}
+            title="Project Management"
+            description="Organize all your designs in one place with easy access and version control"
+            index={4}
+          />
+          <FeatureCard
+            icon={Sparkles}
+            title="Design Export"
+            description="Export high-quality images, videos, and 3D models for presentations"
+            index={5}
+          />
         </div>
+      </FeatureSection>
 
-        <div className="space-y-7">
-          {modules.map((item) => {
-            const Icon = item.icon
+      {/* Workflow Section */}
+      <WorkflowSection />
 
-            return (
-              <motion.article
-                key={item.title}
-                initial={{ opacity: 0, x: item.direction === 'left' ? -70 : 70 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, amount: 0.32 }}
-                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-                className="surface-glass overflow-hidden p-6 md:p-8"
-              >
-                <div className="grid gap-6 md:grid-cols-[1fr_250px] md:items-start">
-                  <div>
-                    <span className="inline-flex rounded-full border border-[#e8e0d6] bg-[#fdf0e6] px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-[#c07a45]">
-                      {item.badge}
-                    </span>
-                    <h3 className="mt-4 text-2xl font-medium text-[#3a2e24] md:text-3xl">{item.title}</h3>
-                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#8a7260] md:text-base">{item.body}</p>
+      {/* Testimonials Section */}
+      <TestimonialsSection />
 
-                    <div className="mt-5 flex flex-wrap gap-2">
-                      {item.points.map((point) => (
-                        <span
-                          key={point}
-                          className="rounded-full border border-[#e8ddd0] bg-[#faf5f0] px-3 py-1 text-xs text-[#8a7260]"
-                        >
-                          {point}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+      {/* Final CTA */}
+      <FinalCTA />
 
-                  <div className="surface-glass-soft flex h-full min-h-44 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
-                    <span className="flex h-14 w-14 items-center justify-center rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] text-[#c07a45]">
-                      <Icon size={24} />
-                    </span>
-                    <p className="text-sm text-[#8a7260]">Purpose-built module motion with subtle glass depth.</p>
-                  </div>
-                </div>
-              </motion.article>
-            )
-          })}
-        </div>
-      </section>
-
-      <section className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-20 md:px-10 md:pb-28">
-        <div className="surface-glass p-6 md:p-8">
-          <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#c4b09a]">2D To 3D Transition</p>
-              <h2 className="mt-2 text-3xl font-medium text-[#3a2e24] md:text-4xl">A clear visual journey, step by step.</h2>
-            </div>
-            <Link
-              to="/register"
-              className="rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] px-4 py-2 text-sm font-medium text-[#c07a45] transition hover:bg-[#fde8d4]"
-            >
-              Try the flow now
-            </Link>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {flow.map((step, index) => {
-              const Icon = step.icon
-
-              return (
-                <motion.div
-                  key={step.title}
-                  initial={{ opacity: 0, y: 24 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.4 }}
-                  transition={{ duration: 0.52, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                  className="surface-glass-soft p-5"
-                >
-                    <span className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] text-[#c07a45]">
-                    <Icon size={20} />
-                  </span>
-                    <h3 className="text-lg font-medium text-[#3a2e24]">{step.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-[#8a7260]">{step.detail}</p>
-                </motion.div>
-              )
-            })}
+      {/* Footer */}
+      <motion.footer
+        className="landing-footer"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
+      >
+        <div className="landing-footer-content">
+          <Link to="/" className="landing-footer-logo">
+            <Cuboid size={20} />
+            <span>ROOMETRY</span>
+          </Link>
+          <p className="landing-footer-text">
+            Design beautiful spaces with precision and creativity.
+          </p>
+          <div className="landing-footer-links">
+            <Link to="/" className="landing-footer-link">Home</Link>
+            <Link to="/dashboard" className="landing-footer-link">Dashboard</Link>
+            <Link to="/login" className="landing-footer-link">Sign In</Link>
+            <Link to="/register" className="landing-footer-link">Sign Up</Link>
           </div>
         </div>
-      </section>
+        <div className="landing-footer-bottom">
+          <p>© {new Date().getFullYear()} Roometry. All rights reserved.</p>
+        </div>
+      </motion.footer>
     </div>
   )
 }

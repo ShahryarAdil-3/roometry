@@ -1,32 +1,602 @@
-// Dashboard page layout.
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useAnimation, useMotionValue } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore'
-import { Clock, Cuboid, LayoutGrid, LogOut, Pencil, Plus, Trash2, Wand2 } from 'lucide-react'
+import {
+  Clock,
+  Cuboid,
+  LayoutGrid,
+  LogOut,
+  Pencil,
+  Plus,
+  Trash2,
+  Wand2,
+  Search,
+  Filter,
+  SortAsc,
+  MoreVertical,
+  Eye,
+  Heart,
+  Share2
+} from 'lucide-react'
 import { auth, db } from '@appFirebase/firebase'
 import ThemeToggle from '@components/ThemeToggle'
 import { saveProjectSnapshot } from '@appFirebase/projects'
 import './Dashboard.css'
 
 const formatCreatedAt = (value) => {
-  if (!value) {
-    return 'Just now'
-  }
-
-  if (typeof value.toDate === 'function') {
-    return value.toDate().toLocaleDateString()
-  }
-
+  if (!value) return 'Just now'
+  if (typeof value.toDate === 'function') return value.toDate().toLocaleDateString()
   const parsed = new Date(value)
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleDateString()
-  }
-
+  if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString()
   return 'Just now'
 }
 
+const formatDateRelative = (value) => {
+  if (!value) return 'Just now'
+  const date = typeof value.toDate === 'function' ? value.toDate() : new Date(value)
+  const now = new Date()
+  const diff = now - date
+
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 7) return date.toLocaleDateString()
+  if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`
+  if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`
+  if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
+  return 'Just now'
+}
+
+// Animated Project Card
+const ProjectCard = ({
+  room,
+  index,
+  onEdit,
+  onDelete,
+  onOpen
+}) => {
+  const [isHovered, setIsHovered] = useState(false)
+  const [showActions, setShowActions] = useState(false)
+
+  const cardControls = useAnimation()
+
+  const handleHoverStart = () => {
+    setIsHovered(true)
+    cardControls.start({ scale: 1.02, y: -5 })
+  }
+
+  const handleHoverEnd = () => {
+    setIsHovered(false)
+    cardControls.start({ scale: 1, y: 0 })
+  }
+
+  const previewImage = room.snapshot?.thumbnail || `/api/placeholder/${room.id}`
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.5 }}
+      exit={{ opacity: 0, y: -20, scale: 0.95 }}
+      whileHover={{ scale: 1.02 }}
+      className="project-card"
+      onHoverStart={handleHoverStart}
+      onHoverEnd={handleHoverEnd}
+    >
+      <motion.div
+        className="project-card-image"
+        style={{ background: room.snapshot?.colors?.primary || '#f0f0f0' }}
+        animate={{
+          scale: isHovered ? 1.1 : 1,
+          boxShadow: isHovered ? '0 10px 40px rgba(0,0,0,0.2)' : '0 4px 16px rgba(0,0,0,0.1)'
+        }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="project-card-image-placeholder">
+          {room.name?.charAt(0)?.toUpperCase() || 'P'}
+        </div>
+        <div className="project-card-badge">
+          {room.snapshot?.cameraMode === 'firstPerson' ? '3D' : '2D'}
+        </div>
+        <motion.button
+          className="project-card-quick-action"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: isHovered ? 1 : 0, scale: isHovered ? 1 : 0.8 }}
+          transition={{ duration: 0.2 }}
+          onClick={(e) => { e.stopPropagation(); onOpen(room) }}
+        >
+          <Eye size={16} />
+        </motion.button>
+      </motion.div>
+
+      <div className="project-card-content">
+        <div className="project-card-header">
+          <h3 className="project-card-title">
+            {room.name || `Project ${index + 1}`}
+          </h3>
+          <motion.div
+            className="project-card-actions"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: showActions ? 1 : 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <button
+              className="project-card-action-btn"
+              onClick={(e) => { e.stopPropagation(); onEdit(room) }}
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              className="project-card-action-btn project-card-action-btn-danger"
+              onClick={(e) => { e.stopPropagation(); onDelete(room) }}
+            >
+              <Trash2 size={14} />
+            </button>
+          </motion.div>
+          <button
+            className="project-card-more-btn"
+            onClick={(e) => { e.stopPropagation(); setShowActions(!showActions) }}
+          >
+            <MoreVertical size={16} />
+          </button>
+        </div>
+
+        <div className="project-card-meta">
+          <span className="project-card-date">
+            <Clock size={12} />
+            {formatDateRelative(room.createdAt)}
+          </span>
+          {room.snapshot?.dimensions && (
+            <span className="project-card-dimensions">
+              {room.snapshot.dimensions.width}m x {room.snapshot.dimensions.depth}m
+            </span>
+          )}
+        </div>
+
+        <div className="project-card-stats">
+          <span className="project-card-stat">
+            <Cuboid size={14} />
+            {room.snapshot?.furnitureCount || 0}
+          </span>
+          <span className="project-card-stat">
+            <Wand2 size={14} />
+            {room.snapshot?.cameraMode === 'firstPerson' ? '3D' : '2D'}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// Empty State
+const EmptyState = ({ onCreate }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5 }}
+      className="empty-state"
+    >
+      <motion.div
+        className="empty-state-icon"
+        initial={{ rotate: -20, opacity: 0 }}
+        animate={{ rotate: 0, opacity: 1 }}
+        transition={{ delay: 0.2, duration: 0.5, type: 'spring', stiffness: 200 }}
+      >
+        <LayoutGrid size={48} />
+      </motion.div>
+      <h2 className="empty-state-title">No Projects Yet</h2>
+      <p className="empty-state-description">
+        Start creating your first interior design project
+      </p>
+      <motion.button
+        className="empty-state-button"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.4, duration: 0.5 }}
+        onClick={onCreate}
+      >
+        <Plus size={18} />
+        Create New Project
+      </motion.button>
+    </motion.div>
+  )
+}
+
+// Create Project Modal
+const CreateProjectModal = ({ isOpen, onClose, onCreate }) => {
+  const [name, setName] = useState('')
+  const [width, setWidth] = useState(18)
+  const [depth, setDepth] = useState(14)
+  const [pixelsPerMeter, setPixelsPerMeter] = useState(36)
+  const [template, setTemplate] = useState('blank')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onCreate({ name, width, depth, pixelsPerMeter, template })
+    setName('')
+    setWidth(18)
+    setDepth(14)
+    setPixelsPerMeter(36)
+    setTemplate('blank')
+    onClose()
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="modal-overlay"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ y: 50, opacity: 0, scale: 0.95 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 50, opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 className="modal-title">Create New Project</h2>
+              <button className="modal-close" onClick={onClose}>
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="modal-form">
+              <div className="modal-field">
+                <label className="modal-label">Project Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="My Living Room"
+                  className="modal-input"
+                />
+              </div>
+
+              <div className="modal-field">
+                <label className="modal-label">Template</label>
+                <select
+                  value={template}
+                  onChange={(e) => setTemplate(e.target.value)}
+                  className="modal-select"
+                >
+                  <option value="blank">Blank Project</option>
+                  <option value="living-room">Living Room</option>
+                  <option value="bedroom">Bedroom</option>
+                  <option value="kitchen">Kitchen</option>
+                  <option value="office">Office</option>
+                </select>
+              </div>
+
+              <div className="modal-fields-grid">
+                <div className="modal-field">
+                  <label className="modal-label">Width (m)</label>
+                  <input
+                    type="number"
+                    value={width}
+                    onChange={(e) => setWidth(parseFloat(e.target.value) || 0)}
+                    min="1"
+                    max="100"
+                    step="0.1"
+                    className="modal-input"
+                  />
+                </div>
+                <div className="modal-field">
+                  <label className="modal-label">Depth (m)</label>
+                  <input
+                    type="number"
+                    value={depth}
+                    onChange={(e) => setDepth(parseFloat(e.target.value) || 0)}
+                    min="1"
+                    max="100"
+                    step="0.1"
+                    className="modal-input"
+                  />
+                </div>
+              </div>
+
+              <div className="modal-field">
+                <label className="modal-label">Grid Density</label>
+                <input
+                  type="range"
+                  value={pixelsPerMeter}
+                  onChange={(e) => setPixelsPerMeter(parseInt(e.target.value))}
+                  min="16"
+                  max="140"
+                  step="2"
+                  className="modal-range"
+                />
+                <span className="modal-range-value">{pixelsPerMeter} px/m</span>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="modal-button-secondary" onClick={onClose}>
+                  Cancel
+                </button>
+                <button type="submit" className="modal-button-primary">
+                  <Plus size={16} />
+                  Create Project
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// Confirm Delete Modal
+const ConfirmDeleteModal = ({ isOpen, onClose, onConfirm, itemName }) => {
+  if (!isOpen) return null
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="modal-overlay"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ y: 50, opacity: 0, scale: 0.95 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 50, opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="modal-content modal-content-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 className="modal-title">Confirm Delete</h2>
+              <button className="modal-close" onClick={onClose}>
+                &times;
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p>Are you sure you want to delete "{itemName}"? This action cannot be undone.</p>
+            </div>
+
+            <div className="modal-actions">
+              <button type="button" className="modal-button-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="button" className="modal-button-danger" onClick={onConfirm}>
+                <Trash2 size={16} />
+                Delete
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// Edit Project Modal
+const EditProjectModal = ({ isOpen, onClose, onSave, project }) => {
+  const [name, setName] = useState(project?.name || '')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSave({ ...project, name })
+    onClose()
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="modal-overlay"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ y: 50, opacity: 0, scale: 0.95 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 50, opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 className="modal-title">Edit Project</h2>
+              <button className="modal-close" onClick={onClose}>
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="modal-form">
+              <div className="modal-field">
+                <label className="modal-label">Project Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="My Living Room"
+                  className="modal-input"
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="modal-button-secondary" onClick={onClose}>
+                  Cancel
+                </button>
+                <button type="submit" className="modal-button-primary">
+                  <Pencil size={16} />
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// Dashboard Header
+const DashboardHeader = ({ user, onLogout, onCreate, isGuest }) => {
+  return (
+    <motion.header
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="dashboard-header"
+    >
+      <div className="dashboard-header-left">
+        <motion.div
+          className="dashboard-logo"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Cuboid size={24} />
+          <span>ROOMETRY</span>
+        </motion.div>
+        <p className="dashboard-welcome">
+          Welcome back, {user?.displayName || user?.email || 'User'}
+        </p>
+      </div>
+
+      <div className="dashboard-header-right">
+        <div className="dashboard-search">
+          <Search size={16} />
+          <input type="text" placeholder="Search projects..." />
+        </div>
+        <ThemeToggle />
+        <motion.button
+          className="dashboard-button-primary"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          onClick={onCreate}
+        >
+          <Plus size={16} />
+          New Project
+        </motion.button>
+        <motion.button
+          className="dashboard-button-secondary"
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          onClick={onLogout}
+        >
+          <LogOut size={16} />
+          {isGuest ? 'Exit' : 'Logout'}
+        </motion.button>
+      </div>
+    </motion.header>
+  )
+}
+
+// Quick Actions
+const QuickActions = ({ onAction }) => {
+  const actions = [
+    { icon: LayoutGrid, label: 'New Project', value: 'new' },
+    { icon: Cuboid, label: 'Templates', value: 'templates' },
+    { icon: Heart, label: 'Favorites', value: 'favorites' },
+    { icon: Share2, label: 'Shared', value: 'shared' }
+  ]
+
+  return (
+    <motion.div
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ delay: 0.3, duration: 0.5 }}
+      className="quick-actions"
+    >
+      {actions.map((action, i) => {
+        const Icon = action.icon
+        return (
+          <motion.button
+            key={action.value}
+            className="quick-action"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.4 + i * 0.1, duration: 0.5 }}
+            whileHover={{ scale: 1.05, y: -3 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onAction(action.value)}
+          >
+            <Icon size={20} />
+            <span>{action.label}</span>
+          </motion.button>
+        )
+      })}
+    </motion.div>
+  )
+}
+
+// Projects Grid
+const ProjectsGrid = ({ rooms, onEdit, onDelete, onOpen, loading }) => {
+
+  if (loading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="loading-state"
+      >
+        {[...Array(6)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="loading-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05, duration: 0.5 }}
+          />
+        ))}
+      </motion.div>
+    )
+  }
+
+  if (rooms.length === 0) {
+    return <EmptyState onCreate={() => onEdit(null)} />
+  }
+
+  return (
+    <motion.div
+      className="projects-grid"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <AnimatePresence mode="popLayout">
+        {rooms.map((room, i) => (
+          <ProjectCard
+            key={room.id}
+            room={room}
+            index={i}
+            onEdit={() => onEdit(room)}
+            onDelete={() => onDelete(room)}
+            onOpen={() => onOpen(room)}
+          />
+        ))}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+// Main Dashboard Component
 function Dashboard() {
   const navigate = useNavigate()
   const [rooms, setRooms] = useState([])
@@ -34,15 +604,17 @@ function Dashboard() {
   const [isGuestMode, setIsGuestMode] = useState(false)
   const [profileLabel, setProfileLabel] = useState('')
   const [editingRoom, setEditingRoom] = useState(null)
-  const [editDraft, setEditDraft] = useState({
-    name: '',
-    width: 18,
-    depth: 14,
-    pixelsPerMeter: 36,
-  })
+  const [editDraft, setEditDraft] = useState({ name: '' })
   const [guestProjects, setGuestProjects] = useState([])
   const [isMigrating, setIsMigrating] = useState(false)
   const [migrationMessage, setMigrationMessage] = useState('')
+
+  // Modal states
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [roomToDelete, setRoomToDelete] = useState(null)
+  const [roomToEdit, setRoomToEdit] = useState(null)
 
   const loadCloudProjects = useCallback(async (user) => {
     try {
@@ -98,483 +670,230 @@ function Dashboard() {
 
       setRooms([])
       setLoading(false)
-      navigate('/login')
     })
 
     return () => unsubscribe()
-  }, [loadCloudProjects, navigate])
-
-  const handleMigrateGuestProjects = async () => {
-    if (isMigrating) {
-      return
-    }
-
-    const user = auth.currentUser
-    if (!user) {
-      setMigrationMessage('Sign in to migrate your guest projects to cloud.')
-      return
-    }
-
-    const candidates = guestProjects.filter((item) => item?.snapshot)
-    if (!candidates.length) {
-      setMigrationMessage('No guest projects available to migrate.')
-      return
-    }
-
-    setIsMigrating(true)
-    setMigrationMessage('Migrating guest projects...')
-
-    try {
-      await Promise.all(
-        candidates.map((project) =>
-          saveProjectSnapshot({
-            uid: user.uid,
-            name: project.name || 'Untitled Project',
-            snapshot: project.snapshot,
-          }),
-        ),
-      )
-
-      window.localStorage.removeItem('roometry_guest_rooms')
-      window.localStorage.removeItem('roometry_guest_mode')
-      setGuestProjects([])
-      await loadCloudProjects(user)
-      setMigrationMessage('Guest projects migrated to cloud successfully.')
-    } catch (migrationError) {
-      console.error('Migration failed:', migrationError)
-      setMigrationMessage('Migration failed. Please try again.')
-    } finally {
-      setIsMigrating(false)
-    }
-  }
-
-  const handleDismissMigration = () => {
-    setGuestProjects([])
-    setMigrationMessage('')
-  }
-
-  const handleCreate = () => {
-    navigate(`/app?new=1&nonce=${Date.now().toString(36)}`)
-  }
-
-  const handleOpenRoom = (roomId) => {
-    if (roomId) {
-      navigate(`/app?id=${roomId}`)
-      return
-    }
-
-    navigate('/app')
-  }
-
-  const openEditModal = (event, room) => {
-    event.stopPropagation()
-
-    const canvas = room.floorPlan?.canvas ?? {}
-    setEditingRoom(room)
-    setEditDraft({
-      name: room.name || 'Untitled Project',
-      width: Number(canvas.width) || 18,
-      depth: Number(canvas.depth) || 14,
-      pixelsPerMeter: Number(canvas.pixelsPerMeter) || 36,
-    })
-  }
-
-  const closeEditModal = () => {
-    setEditingRoom(null)
-  }
-
-  const handleSaveEdit = async (event) => {
-    event.preventDefault()
-
-    if (!editingRoom) {
-      return
-    }
-
-    const nextName = (editDraft.name || 'Untitled Project').trim() || 'Untitled Project'
-    const nextWidth = Number(editDraft.width)
-    const nextDepth = Number(editDraft.depth)
-    const nextPixelsPerMeter = Number(editDraft.pixelsPerMeter)
-
-    if (isGuestMode) {
-      const nextRooms = rooms.map((room) => {
-        if (room.id !== editingRoom.id) {
-          return room
-        }
-
-        return {
-          ...room,
-          name: nextName,
-          updatedAt: new Date().toISOString(),
-          floorPlan: {
-            ...room.floorPlan,
-            canvas: {
-              ...room.floorPlan?.canvas,
-              width: nextWidth,
-              depth: nextDepth,
-              pixelsPerMeter: nextPixelsPerMeter,
-            },
-          },
-        }
-      })
-
-      setRooms(nextRooms)
-      window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(nextRooms))
-      closeEditModal()
-      return
-    }
-
-    await updateDoc(doc(db, 'rooms', editingRoom.id), {
-      name: nextName,
-      updatedAt: new Date().toISOString(),
-      'floorPlan.canvas.width': nextWidth,
-      'floorPlan.canvas.depth': nextDepth,
-      'floorPlan.canvas.pixelsPerMeter': nextPixelsPerMeter,
-    })
-
-    setRooms((previous) =>
-      previous.map((room) => {
-        if (room.id !== editingRoom.id) {
-          return room
-        }
-
-        return {
-          ...room,
-          name: nextName,
-          updatedAt: new Date().toISOString(),
-          floorPlan: {
-            ...room.floorPlan,
-            canvas: {
-              ...room.floorPlan?.canvas,
-              width: nextWidth,
-              depth: nextDepth,
-              pixelsPerMeter: nextPixelsPerMeter,
-            },
-          },
-        }
-      }),
-    )
-
-    closeEditModal()
-  }
-
-  const metrics = useMemo(
-    () => [
-      { label: 'Saved Rooms', value: String(rooms.length).padStart(2, '0') },
-      { label: 'Profile', value: isGuestMode ? 'Guest' : 'Cloud' },
-      { label: 'Workflow', value: '2D -> 3D' },
-    ],
-    [isGuestMode, rooms.length],
-  )
-
-  const handleDeleteRoom = async (event, roomId) => {
-    event.stopPropagation()
-
-    if (isGuestMode) {
-      const nextRooms = rooms.filter((room) => room.id !== roomId)
-      setRooms(nextRooms)
-      window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(nextRooms))
-      return
-    }
-
-    await deleteDoc(doc(db, 'rooms', roomId))
-    setRooms((previous) => previous.filter((room) => room.id !== roomId))
-  }
+  }, [loadCloudProjects])
 
   const handleLogout = async () => {
-    if (isGuestMode) {
-      window.localStorage.removeItem('roometry_guest_mode')
+    try {
+      await signOut(auth)
       navigate('/')
+    } catch (error) {
+      console.error('Error logging out:', error)
+    }
+  }
+
+  const handleCreateProject = async (config) => {
+    const projectRoomId = `room_${Date.now()}`
+    const newRoom = {
+      id: projectRoomId,
+      name: config.name || `Project ${Date.now()}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      snapshot: {
+        room: { width: config.width, depth: config.height || config.depth, height: 2.7 },
+        walls: { north: {}, south: {}, east: {}, west: {} },
+        floor: { color: '#f5f5f5' },
+        ceiling: { color: '#ffffff' },
+        furniture: [],
+        cameraMode: 'orbit',
+        dimensions: { width: config.width, depth: config.depth },
+        furnitureCount: 0,
+        colors: { primary: '#c07a45' }
+      },
+      floorPlan: {
+        rooms: [{
+          id: projectRoomId,
+          name: config.name || `Project ${Date.now()}`,
+          x: 0,
+          z: 0,
+          width: config.width,
+          depth: config.depth,
+          height: 2.7,
+          wallThickness: 0.15,
+          doors: []
+        }],
+        selectedRoomId: projectRoomId,
+        uiMode: 'draw',
+        livePreview: false,
+        canvas: { width: config.width, depth: config.depth, pixelsPerMeter: config.pixelsPerMeter },
+        snapEnabled: true,
+        snapStep: 0.5,
+        constraintMessage: null
+      }
+    }
+
+    if (isGuestMode) {
+      const stored = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+      const updated = [newRoom, ...stored]
+      window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
+      setRooms(updated)
+      navigate('/app', { state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan } })
       return
     }
 
-    await signOut(auth)
-    navigate('/')
+    try {
+      const docRef = doc(collection(db, 'rooms'))
+      await updateDoc(docRef, {
+        ...newRoom,
+        uid: auth.currentUser.uid,
+        id: docRef.id
+      })
+      newRoom.id = docRef.id
+      setRooms([newRoom, ...rooms])
+      navigate('/app', { state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan } })
+    } catch (error) {
+      console.error('Error creating project:', error)
+    }
+  }
+
+  const handleOpenProject = (room) => {
+    navigate('/app', { state: { snapshot: room.snapshot, floorPlan: room.floorPlan } })
+  }
+
+  const handleDeleteProject = async (room) => {
+    setRoomToDelete(room)
+    setIsDeleteModalOpen(true)
+  }
+
+  const confirmDeleteProject = async () => {
+    if (!roomToDelete) return
+
+    try {
+      if (isGuestMode) {
+        const stored = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+        const updated = stored.filter(r => r.id !== roomToDelete.id)
+        window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
+        setRooms(updated)
+      } else {
+        await deleteDoc(doc(db, 'rooms', roomToDelete.id))
+        setRooms(rooms.filter(r => r.id !== roomToDelete.id))
+      }
+      setIsDeleteModalOpen(false)
+      setRoomToDelete(null)
+    } catch (error) {
+      console.error('Error deleting project:', error)
+    }
+  }
+
+  const handleEditProject = (room) => {
+    setRoomToEdit(room)
+    setIsEditModalOpen(true)
+  }
+
+  const confirmEditProject = async (updatedRoom) => {
+    try {
+      if (isGuestMode) {
+        const stored = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+        const updated = stored.map(r => r.id === updatedRoom.id ? updatedRoom : r)
+        window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
+        setRooms(updated)
+      } else {
+        await updateDoc(doc(db, 'rooms', updatedRoom.id), {
+          name: updatedRoom.name,
+          updatedAt: new Date()
+        })
+        setRooms(rooms.map(r => r.id === updatedRoom.id ? updatedRoom : r))
+      }
+      setIsEditModalOpen(false)
+      setRoomToEdit(null)
+    } catch (error) {
+      console.error('Error updating project:', error)
+    }
+  }
+
+  const handleQuickAction = (action) => {
+    switch (action) {
+      case 'new':
+        setIsCreateModalOpen(true)
+        break
+      case 'templates':
+        navigate('/templates')
+        break
+      case 'favorites':
+        navigate('/favorites')
+        break
+      case 'shared':
+        navigate('/shared')
+        break
+    }
   }
 
   return (
-    <div className="page-shell relative min-h-screen overflow-hidden">
-      <div className="premium-grid-bg pointer-events-none absolute inset-0 opacity-[0.2]" />
+    <div className="dashboard-shell">
+      {/* Header */}
+      <DashboardHeader
+        user={{ displayName: profileLabel }}
+        onLogout={handleLogout}
+        onCreate={() => setIsCreateModalOpen(true)}
+        isGuest={isGuestMode}
+      />
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-12 pt-8 md:px-10 md:pt-10">
-        <motion.header
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
-          className="surface-glass mb-8 p-6 md:p-7"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="max-w-2xl">
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#c4b09a]">Project Dashboard</p>
-              <h1 className="mt-2 text-3xl font-medium text-[#3a2e24] sm:text-4xl md:text-5xl">Your saved spatial concepts</h1>
-              <p className="mt-3 text-sm leading-relaxed text-[#8a7260] sm:text-base">
-                Organize rooms, resume active drafts, and launch directly into the editor when you are ready to refine.
-              </p>
-              <p className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#c4b09a]">{profileLabel || 'Loading profile'}</p>
-            </div>
+      {/* Quick Actions */}
+      <QuickActions onAction={handleQuickAction} />
 
-            <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-              <ThemeToggle />
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-2 rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
-              >
-                <LogOut size={15} />
-                Logout
-              </button>
+      {/* Projects Section */}
+      <motion.div
+        className="dashboard-main"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+      >
+        <div className="dashboard-section-header">
+          <motion.h2
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            Your Projects
+          </motion.h2>
+          <motion.div
+            className="dashboard-section-actions"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+          >
+            <button className="dashboard-sort-btn">
+              <SortAsc size={14} />
+              Sort
+            </button>
+            <button className="dashboard-filter-btn">
+              <Filter size={14} />
+              Filter
+            </button>
+          </motion.div>
+        </div>
 
-              <button
-                type="button"
-                onClick={handleCreate}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#c07a45] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#a8632e]"
-              >
-                <Plus size={16} />
-                Create New
-              </button>
-            </div>
-          </div>
+        <ProjectsGrid
+          rooms={rooms}
+          loading={loading}
+          onEdit={handleEditProject}
+          onDelete={handleDeleteProject}
+          onOpen={handleOpenProject}
+        />
+      </motion.div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {metrics.map((item) => (
-              <div key={item.label} className="surface-glass-soft p-4">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[#c4b09a]">{item.label}</p>
-                <p className="mt-2 text-lg font-medium text-[#3a2e24]">{item.value}</p>
-              </div>
-            ))}
-          </div>
-        </motion.header>
+      {/* Modals */}
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreateProject}
+      />
 
-        {!isGuestMode && guestProjects.length > 0 && (
-          <div className="surface-glass mb-6 flex flex-wrap items-center justify-between gap-4 p-4">
-            <div>
-              <p className="text-sm font-medium text-[#3a2e24]">Guest projects found</p>
-              <p className="text-xs text-[#8a7260]">
-                Migrate {guestProjects.length} guest project{guestProjects.length > 1 ? 's' : ''} to your cloud
-                account so they are available across devices.
-              </p>
-              {migrationMessage && <p className="mt-2 text-xs text-[#8a7260]">{migrationMessage}</p>}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleMigrateGuestProjects}
-                disabled={isMigrating}
-                className="rounded-lg bg-[#c07a45] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#a8632e] disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isMigrating ? 'Migrating...' : 'Migrate to cloud'}
-              </button>
-              <button
-                type="button"
-                onClick={handleDismissMigration}
-                className="rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
-              >
-                Not now
-              </button>
-            </div>
-          </div>
-        )}
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDeleteProject}
+        itemName={roomToDelete?.name || 'this project'}
+      />
 
-        {loading ? (
-          <div className="surface-glass flex min-h-72 flex-col items-center justify-center gap-4 p-8 text-center">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-              className="rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] p-3 text-[#c07a45]"
-            >
-              <LayoutGrid size={28} />
-            </motion.div>
-            <p className="text-sm text-[#8a7260]">Loading your saved rooms...</p>
-          </div>
-        ) : (
-          <>
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-medium text-[#3a2e24] md:text-2xl">Saved Rooms</h2>
-              <span className="text-[10px] uppercase tracking-[0.18em] text-[#c4b09a]">Click a card to open</span>
-            </div>
-
-            <motion.div
-              layout
-              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-            >
-              <motion.button
-                type="button"
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.99 }}
-                onClick={handleCreate}
-                className="surface-glass group flex min-h-64 flex-col items-center justify-center border-dashed border-[#e8e0d6] p-5 text-center transition hover:border-[#c07a45]"
-              >
-                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] text-[#c07a45]">
-                  <Plus size={20} />
-                </span>
-                <p className="text-base font-medium text-[#3a2e24]">Create New Room</p>
-                <p className="mt-2 text-sm text-[#8a7260]">Start a fresh 2D layout and preview it in 3D instantly.</p>
-              </motion.button>
-
-              <AnimatePresence>
-                {rooms.map((room, index) => (
-                  <motion.article
-                    key={room.id}
-                    layout
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{ delay: index * 0.03, duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
-                    className="surface-glass group relative cursor-pointer overflow-hidden p-0"
-                    onClick={() => handleOpenRoom(room.id)}
-                  >
-                    <div className="relative flex aspect-video items-center justify-center overflow-hidden border-b border-[#ede6dc] bg-[#faf5f0]">
-                      <span className="relative flex h-14 w-14 items-center justify-center rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] text-[#c07a45]">
-                        <Cuboid size={24} />
-                      </span>
-                    </div>
-
-                    <div className="space-y-3 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="line-clamp-1 text-base font-medium text-[#3a2e24]">{room.name || 'Untitled Room'}</h3>
-                        <span className="rounded-full border border-[#e8e0d6] bg-[#fdf0e6] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[#c07a45]">
-                          2D/3D
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs text-[#8a7260]">
-                        <span className="inline-flex items-center gap-1">
-                          <Clock size={12} />
-                          {formatCreatedAt(room.createdAt)}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Wand2 size={12} />
-                          Ready
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={(event) => openEditModal(event, room)}
-                      className="absolute right-14 top-3 rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] p-2 text-[#c07a45] opacity-0 transition group-hover:opacity-100"
-                      aria-label="Edit room details"
-                    >
-                      <Pencil size={14} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(event) => handleDeleteRoom(event, room.id)}
-                      className="absolute right-3 top-3 rounded-lg border border-[#e4c4c4] bg-[#f9eded] p-2 text-[#7a3c3c] opacity-0 transition group-hover:opacity-100"
-                      aria-label="Delete room"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </motion.article>
-                ))}
-              </AnimatePresence>
-            </motion.div>
-
-            {!rooms.length && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="surface-glass mt-6 flex min-h-44 flex-col items-center justify-center gap-3 p-8 text-center"
-              >
-                <span className="rounded-lg border border-[#e8e0d6] bg-[#fdf0e6] p-3 text-[#c07a45]">
-                  <LayoutGrid size={22} />
-                </span>
-                <p className="text-lg font-medium text-[#3a2e24]">No rooms yet</p>
-                <p className="max-w-md text-sm text-[#8a7260]">
-                  Create your first layout and build a polished transition from 2D planning into 3D visualization.
-                </p>
-              </motion.div>
-            )}
-          </>
-        )}
-
-        {editingRoom && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-[#faf7f4]/90 px-4">
-            <form
-              onSubmit={handleSaveEdit}
-              className="surface-glass w-full max-w-xl space-y-4 p-5 md:p-6"
-            >
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#c4b09a]">Edit Project</p>
-                <h3 className="mt-1 text-2xl font-medium text-[#3a2e24]">Update name and canvas size</h3>
-              </div>
-
-              <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
-                Name
-                <input
-                  type="text"
-                  value={editDraft.name}
-                  onChange={(event) => setEditDraft((current) => ({ ...current, name: event.target.value }))}
-                  className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
-                  required
-                />
-              </label>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
-                  Width (m)
-                  <input
-                    type="number"
-                    min="6"
-                    max="200"
-                    step="1"
-                    value={editDraft.width}
-                    onChange={(event) => setEditDraft((current) => ({ ...current, width: Number(event.target.value) }))}
-                    className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
-                    required
-                  />
-                </label>
-
-                <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
-                  Depth (m)
-                  <input
-                    type="number"
-                    min="6"
-                    max="200"
-                    step="1"
-                    value={editDraft.depth}
-                    onChange={(event) => setEditDraft((current) => ({ ...current, depth: Number(event.target.value) }))}
-                    className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
-                    required
-                  />
-                </label>
-
-                <label className="block space-y-1 text-[10px] uppercase tracking-[0.12em] text-[#c4b09a]">
-                  PPM
-                  <input
-                    type="number"
-                    min="16"
-                    max="140"
-                    step="1"
-                    value={editDraft.pixelsPerMeter}
-                    onChange={(event) =>
-                      setEditDraft((current) => ({ ...current, pixelsPerMeter: Number(event.target.value) }))
-                    }
-                    className="w-full rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-3 py-2 text-sm text-[#3a2e24] outline-none transition focus:border-[#c07a45]"
-                    required
-                  />
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={closeEditModal}
-                  className="rounded-lg border border-[#e8e0d6] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#8a7260] transition hover:bg-[#faf0e8] hover:text-[#6b4f35]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-[#c07a45] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#a8632e]"
-                >
-                  Save changes
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
+      <EditProjectModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={confirmEditProject}
+        project={roomToEdit}
+      />
     </div>
   )
 }

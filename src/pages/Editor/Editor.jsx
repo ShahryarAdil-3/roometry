@@ -1,7 +1,27 @@
-// Editor page layout.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from 'framer-motion'
+import {
+  LayoutGrid,
+  Cuboid,
+  Eye,
+  MousePointer2,
+  Move3D,
+  Type,
+  Save,
+  Undo,
+  Redo,
+  Settings,
+  HelpCircle,
+  ChevronLeft,
+  ChevronRight,
+  Minimize2,
+  Maximize2,
+  X,
+  Plus,
+  Trash2
+} from 'lucide-react'
 import { useSceneStore } from '@store/useSceneStore'
 import { SceneControls } from '@components/layout/Sidebar'
 import Canvas3D from '@components/canvas/Canvas3D'
@@ -10,7 +30,7 @@ import { ControlIcon } from '@components/ui/ControlIcons'
 import ThemeToggle from '@components/ThemeToggle'
 import { auth } from '@appFirebase/firebase'
 import { fetchProjectSnapshot, saveProjectSnapshot } from '@appFirebase/projects'
-import '@/App.css'
+import '../../styles/editor-ui.css'
 import './Editor.css'
 
 const GUEST_MODE_STORAGE_KEY = 'roometry_guest_mode'
@@ -21,10 +41,7 @@ const WALL_KEYS = ['north', 'south', 'east', 'west']
 const cloneSerializable = (value) => JSON.parse(JSON.stringify(value))
 
 const detectTouchDevice = () => {
-  if (typeof window === 'undefined') {
-    return false
-  }
-
+  if (typeof window === 'undefined') return false
   return window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 820
 }
 
@@ -45,21 +62,13 @@ const createSnapshotFromState = (state) =>
 
 const deriveProjectName = (snapshot) => {
   const selected = snapshot.floorPlan.rooms.find((room) => room.id === snapshot.floorPlan.selectedRoomId)
-  if (selected?.name) {
-    return selected.name
-  }
-
-  if (snapshot.floorPlan.rooms[0]?.name) {
-    return snapshot.floorPlan.rooms[0].name
-  }
-
+  if (selected?.name) return selected.name
+  if (snapshot.floorPlan.rooms[0]?.name) return snapshot.floorPlan.rooms[0].name
   return `Project ${new Date().toLocaleDateString()}`
 }
 
 const applySnapshotToStore = (snapshot) => {
-  if (!snapshot || typeof snapshot !== 'object') {
-    return false
-  }
+  if (!snapshot || typeof snapshot !== 'object') return false
 
   const current = useSceneStore.getState()
   const incomingFloorPlan = snapshot.floorPlan ?? {}
@@ -120,7 +129,350 @@ const applySnapshotToStore = (snapshot) => {
   return true
 }
 
-function App() {
+// Animated Toolbar
+const Toolbar = ({ activeTool, onToolChange, is3DMode, onToggleMode }) => {
+  const tools = [
+    { id: 'select', icon: MousePointer2, label: 'Select', color: '#c07a45' },
+    { id: 'move', icon: Move3D, label: 'Move', color: '#3a2e24' },
+    { id: 'add', icon: Plus, label: 'Add', color: '#5c6370' },
+    { id: 'delete', icon: Trash2, label: 'Delete', color: '#dc2626' },
+  ]
+
+  return (
+    <motion.div
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="editor-toolbar"
+    >
+      <div className="editor-toolbar-group">
+        {tools.map((tool) => {
+          const Icon = tool.icon
+          const isActive = activeTool === tool.id
+
+          return (
+            <motion.button
+              key={tool.id}
+              className={`editor-toolbar-btn ${isActive ? 'active' : ''}`}
+              whileHover={{ scale: 1.1, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onToolChange(tool.id)}
+              style={isActive ? { background: tool.color, color: 'white' } : {}}
+            >
+              <Icon size={18} />
+              <span className="editor-toolbar-btn-label">{tool.label}</span>
+            </motion.button>
+          )
+        })}
+      </div>
+
+      <motion.div
+        className="editor-mode-toggle"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={onToggleMode}
+      >
+        <span className="editor-mode-toggle-label">
+          {is3DMode ? '2D Mode' : '3D Mode'}
+        </span>
+        <motion.div
+          className="editor-mode-toggle-switch"
+          animate={{
+            x: is3DMode ? 16 : 0,
+            background: is3DMode ? 'var(--primary)' : 'var(--border)'
+          }}
+          transition={{ duration: 0.3, type: 'spring', stiffness: 500 }}
+        />
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Animated Status Bar
+const StatusBar = ({ message, type = 'info', onClose }) => {
+  const colors = {
+    info: '#c07a45',
+    success: '#22c55e',
+    error: '#dc2626',
+    warning: '#f59e0b'
+  }
+
+  return (
+    <AnimatePresence>
+      {message && (
+        <motion.div
+          initial={{ x: 100, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: 100, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="editor-status-bar"
+          style={{ borderColor: colors[type] }}
+        >
+          <span style={{ color: colors[type] }}>{message}</span>
+          <button className="editor-status-bar-close" onClick={onClose}>
+            <X size={14} />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// Side Panel with animations
+const SidePanel = ({ children, isOpen, onToggle, title }) => {
+  const panelControls = useAnimation()
+
+  useEffect(() => {
+    if (isOpen) {
+      panelControls.start({ x: 0, opacity: 1 })
+    } else {
+      panelControls.start({ x: 20, opacity: 0.5 })
+    }
+  }, [isOpen, panelControls])
+
+  return (
+    <motion.div
+      className={`editor-side-panel ${isOpen ? 'open' : 'closed'}`}
+      animate={panelControls}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        className="editor-side-panel-header"
+        initial={false}
+        animate={{ background: isOpen ? 'var(--surface-bg)' : 'transparent' }}
+        transition={{ duration: 0.2 }}
+      >
+        <motion.h3
+          initial={false}
+          animate={{ opacity: isOpen ? 1 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          {title}
+        </motion.h3>
+        <motion.button
+          className="editor-side-panel-toggle"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={onToggle}
+          initial={false}
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <ChevronLeft size={18} />
+        </motion.button>
+      </motion.div>
+
+      <motion.div
+        className="editor-side-panel-content"
+        initial={false}
+        animate={{ opacity: isOpen ? 1 : 0, y: isOpen ? 0 : 10 }}
+        transition={{ duration: 0.2, delay: isOpen ? 0.1 : 0 }}
+      >
+        {children}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Enhanced Header
+const EditorHeader = ({
+  projectName,
+  onSave,
+  onUndo,
+  onRedo,
+  is3DMode,
+  onToggleMode,
+  onToggleSidebar,
+  isSidebarOpen
+}) => {
+  return (
+    <motion.header
+      initial={{ y: -100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="editor-header"
+    >
+      <div className="editor-header-left">
+        <motion.button
+          className="editor-menu-btn"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={onToggleSidebar}
+        >
+          <LayoutGrid size={20} />
+          {isSidebarOpen && <span>Menu</span>}
+        </motion.button>
+
+        <div className="editor-header-title">
+          <motion.h1
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            {projectName}
+          </motion.h1>
+          <motion.span
+            className="editor-header-mode"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            {is3DMode ? '3D View' : '2D Plan'}
+          </motion.span>
+        </div>
+      </div>
+
+      <div className="editor-header-right">
+        <motion.div
+          className="editor-header-actions"
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <motion.button
+            className="editor-action-btn"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onUndo}
+            disabled={!onUndo}
+          >
+            <Undo size={16} />
+            <span>Undo</span>
+          </motion.button>
+
+          <motion.button
+            className="editor-action-btn"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onRedo}
+            disabled={!onRedo}
+          >
+            <Redo size={16} />
+            <span>Redo</span>
+          </motion.button>
+
+          <motion.button
+            className="editor-action-btn editor-action-btn-primary"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onSave}
+          >
+            <Save size={16} />
+            <span>Save</span>
+          </motion.button>
+        </motion.div>
+
+        <motion.div
+          className="editor-header-controls"
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <ThemeToggle />
+          <motion.button
+            className="editor-mode-toggle-btn"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onToggleMode}
+          >
+            {is3DMode ? <LayoutGrid size={18} /> : <Eye size={18} />}
+            <span>{is3DMode ? '2D' : '3D'}</span>
+          </motion.button>
+          <motion.button
+            className="editor-help-btn"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <HelpCircle size={18} />
+          </motion.button>
+        </motion.div>
+      </div>
+    </motion.header>
+  )
+}
+
+// Canvas Container with loading animation
+const CanvasContainer = ({ children, isLoading, is3DMode }) => {
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="editor-canvas-loading"
+      >
+        <motion.div
+          className="editor-loading-spinner"
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+        >
+          <div className="editor-loading-spinner-inner" />
+        </motion.div>
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          Loading {is3DMode ? '3D' : '2D'} environment...
+        </motion.p>
+      </motion.div>
+    )
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className="editor-canvas-container"
+    >
+      <Suspense fallback={null}>
+        {children}
+      </Suspense>
+    </motion.div>
+  )
+}
+
+// Quick Access Panel
+const QuickAccessPanel = ({ onAction }) => {
+  const items = [
+    { id: 'walls', icon: Cuboid, label: 'Walls', count: 4 },
+    { id: 'furniture', icon: Type, label: 'Furniture', count: 10 },
+    { id: 'materials', icon: Settings, label: 'Materials', count: 15 },
+    { id: 'camera', icon: MousePointer2, label: 'Camera', count: 3 },
+  ]
+
+  return (
+    <motion.div
+      initial={{ x: -20, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      transition={{ delay: 0.5, duration: 0.5 }}
+      className="editor-quick-access"
+    >
+      {items.map((item, i) => {
+        const Icon = item.icon
+        return (
+          <motion.button
+            key={item.id}
+            className="editor-quick-access-btn"
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.6 + i * 0.05, duration: 0.5 }}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => onAction(item.id)}
+          >
+            <Icon size={18} />
+            <span>{item.label}</span>
+            <span className="editor-quick-access-count">{item.count}</span>
+          </motion.button>
+        )
+      })}
+    </motion.div>
+  )
+}
+
+// Main Editor Component
+function Editor() {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -129,21 +481,15 @@ function App() {
   const room = useSceneStore((state) => state.room)
   const floorPlan = useSceneStore((state) => state.floorPlan)
   const uiMode = useSceneStore((state) => state.floorPlan.uiMode)
+  const is3DMode = uiMode === 'visualize'
   const selectRoom = useSceneStore((state) => state.selectRoom)
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
-  const setCanvasSettings = useSceneStore((state) => state.setCanvasSettings)
-  const resetScene = useSceneStore((state) => state.resetScene)
 
   const queryProjectId = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return params.get('id')
-  }, [location.search])
-
-  const queryIsNewProject = useMemo(() => {
-    const params = new URLSearchParams(location.search)
-    return params.get('new') === '1'
   }, [location.search])
 
   const activePreset = useMemo(() => {
@@ -186,32 +532,40 @@ function App() {
   const [projectName, setProjectName] = useState('Untitled Project')
   const [isTouchDevice, setIsTouchDevice] = useState(detectTouchDevice)
   const [guestModePreference] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false
-    }
-
+    if (typeof window === 'undefined') return false
     return window.localStorage.getItem(GUEST_MODE_STORAGE_KEY) === 'true'
   })
-  const [isProjectSetupOpen, setIsProjectSetupOpen] = useState(false)
-  const [projectSetup, setProjectSetup] = useState(() => ({
-    name: 'Untitled Project',
-    width: 18,
-    depth: 14,
-    pixelsPerMeter: 36,
-  }))
   const [showGuidedMode, setShowGuidedMode] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true
-    }
-
+    if (typeof window === 'undefined') return true
     return window.localStorage.getItem(GUIDED_MODE_STORAGE_KEY) !== 'dismissed'
   })
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isPropertiesPanelOpen, setIsPropertiesPanelOpen] = useState(true)
+  const [activeTool, setActiveTool] = useState('select')
 
   const isGuestMode = guestModePreference && !authUser
 
   const statusClearTimeoutRef = useRef(null)
-  const loadedProjectRef = useRef('')
-  const newProjectFlowRef = useRef('')
+
+  useEffect(() => {
+    const routeState = location.state
+    if (!routeState || (!routeState.snapshot && !routeState.floorPlan)) {
+      return
+    }
+
+    const snapshot = routeState.snapshot ?? {}
+    applySnapshotToStore({
+      ...snapshot,
+      floorPlan: routeState.floorPlan ?? snapshot.floorPlan,
+    })
+    setCameraMode('top')
+    setUiMode('draw')
+    setProjectName(deriveProjectName({
+      ...snapshot,
+      floorPlan: routeState.floorPlan ?? snapshot.floorPlan ?? { rooms: [] },
+    }))
+  }, [location.key, location.state, setCameraMode, setUiMode])
 
   const setTransientStatus = (nextState, message, duration = 3000) => {
     setSaveState(nextState)
@@ -231,15 +585,11 @@ function App() {
   }
 
   const ensureSelectedRoom = () => {
-    if (floorPlan.selectedRoomId) {
-      return true
-    }
-
+    if (floorPlan.selectedRoomId) return true
     if (floorPlan.rooms[0]?.id) {
       selectRoom(floorPlan.rooms[0].id)
       return true
     }
-
     return false
   }
 
@@ -252,6 +602,15 @@ function App() {
     applySelectedRoomToScene()
     setCameraMode('orbit')
     setUiMode('visualize')
+  }
+
+  const toggle3DMode = () => {
+    if (is3DMode) {
+      setUiMode('draw')
+      setCameraMode('top')
+    } else {
+      openVisualizeMode()
+    }
   }
 
   useEffect(() => {
@@ -267,9 +626,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined
-    }
+    if (typeof window === 'undefined') return undefined
 
     const mediaQuery = window.matchMedia('(pointer: coarse)')
 
@@ -287,464 +644,135 @@ function App() {
     }
   }, [])
 
+  // Update project name from floor plan
   useEffect(() => {
-    if (!queryIsNewProject) {
-      newProjectFlowRef.current = ''
-      return
+    const state = useSceneStore.getState()
+    const currentProjectName = deriveProjectName(state)
+    if (currentProjectName !== projectName) {
+      setProjectName(currentProjectName)
     }
+  }, [projectName])
 
-    const flowKey = `${location.pathname}${location.search}`
-    if (newProjectFlowRef.current === flowKey) {
-      return
-    }
+  const handleToggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen)
+  }
 
-    newProjectFlowRef.current = flowKey
-    resetScene()
-    loadedProjectRef.current = ''
-    setActiveProjectId(null)
-    setProjectName('Untitled Project')
+  const handleToggleProperties = () => {
+    setIsPropertiesPanelOpen(!isPropertiesPanelOpen)
+  }
 
-    const freshCanvas = useSceneStore.getState().floorPlan.canvas
-    setProjectSetup({
-      name: 'Untitled Project',
-      width: freshCanvas.width,
-      depth: freshCanvas.depth,
-      pixelsPerMeter: freshCanvas.pixelsPerMeter,
-    })
-    setIsProjectSetupOpen(true)
-  }, [location.pathname, location.search, queryIsNewProject, resetScene])
+  const handleToolChange = (tool) => {
+    setActiveTool(tool)
+  }
 
-  useEffect(() => {
-    if (!activeProjectId) {
-      loadedProjectRef.current = ''
-      return
-    }
-
-    const loadKey = `${activeProjectId}:${isGuestMode ? 'guest' : authUser?.uid ?? 'anonymous'}`
-    if (loadedProjectRef.current === loadKey) {
-      return
-    }
-
-    if (!isGuestMode && !authUser) {
-      return
-    }
-
-    let isCancelled = false
-
-    const loadProject = async () => {
-      setIsProjectLoading(true)
-
-      try {
-        if (isGuestMode) {
-          const serialized = window.localStorage.getItem(GUEST_PROJECTS_STORAGE_KEY)
-          const items = serialized ? JSON.parse(serialized) : []
-          const found = items.find((item) => item.id === activeProjectId)
-          if (!found?.snapshot) {
-            setTransientStatus('error', 'Saved guest project was not found.', 3200)
-            return
-          }
-
-          if (applySnapshotToStore(found.snapshot)) {
-            setProjectName(found.name ?? deriveProjectName(found.snapshot))
-            setTransientStatus('success', 'Guest project loaded.', 2400)
-          }
-          loadedProjectRef.current = loadKey
-          return
-        }
-
-        const cloudProject = await fetchProjectSnapshot({
-          uid: authUser.uid,
-          projectId: activeProjectId,
-        })
-
-        if (!cloudProject?.snapshot) {
-          setTransientStatus('error', 'Cloud project was not found or has no data.', 3400)
-          loadedProjectRef.current = loadKey
-          return
-        }
-
-        if (applySnapshotToStore(cloudProject.snapshot)) {
-          setProjectName(cloudProject.name ?? deriveProjectName(cloudProject.snapshot))
-          setTransientStatus('success', 'Cloud project loaded.', 2400)
-        }
-
-        loadedProjectRef.current = loadKey
-      } catch (error) {
-        if (!isCancelled) {
-          setTransientStatus(
-            'error',
-            error instanceof Error ? error.message : 'Unable to load project right now.',
-            4200,
-          )
-        }
-      } finally {
-        if (!isCancelled) {
-          setIsProjectLoading(false)
-        }
-      }
-    }
-
-    loadProject()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [activeProjectId, authUser, isGuestMode])
-
-  useEffect(
-    () => () => {
-      if (statusClearTimeoutRef.current) {
-        window.clearTimeout(statusClearTimeoutRef.current)
-      }
-    },
-    [],
-  )
-
-  const handleSaveProject = async () => {
-    const snapshot = createSnapshotFromState(useSceneStore.getState())
-    const fallbackName = deriveProjectName(snapshot)
-    const nextProjectName = (projectName || fallbackName).trim() || fallbackName
-    const roomCount = snapshot.floorPlan.rooms.length
-
-    setProjectName(nextProjectName)
-    setSaveState('saving')
-    setSaveMessage('Saving project...')
+  const handleSave = async () => {
+    const state = useSceneStore.getState()
+    const snapshot = createSnapshotFromState(state)
 
     try {
+      setTransientStatus('saving', 'Saving project...', 0)
+
       if (isGuestMode) {
-        const serialized = window.localStorage.getItem(GUEST_PROJECTS_STORAGE_KEY)
-        const projects = serialized ? JSON.parse(serialized) : []
-        const projectId = activeProjectId ?? `guest-${Date.now()}`
-        const now = new Date().toISOString()
-        const index = projects.findIndex((item) => item.id === projectId)
-        const existing = index >= 0 ? projects[index] : null
-
-        const payload = {
-          id: projectId,
-          uid: 'guest',
-          name: nextProjectName,
-          roomCount,
-          snapshot,
-          createdAt: existing?.createdAt ?? now,
-          updatedAt: now,
-        }
-
-        const nextProjects = [...projects]
-        if (index >= 0) {
-          nextProjects[index] = payload
-        } else {
-          nextProjects.unshift(payload)
-        }
-
-        window.localStorage.setItem(GUEST_PROJECTS_STORAGE_KEY, JSON.stringify(nextProjects))
-        window.localStorage.setItem(GUEST_MODE_STORAGE_KEY, 'true')
-
-        if (!activeProjectId) {
-          navigate(`/app?id=${projectId}`, { replace: true })
-          setActiveProjectId(projectId)
-        }
-
-        setTransientStatus('success', 'Saved locally in guest mode.', 2600)
-        return
+        const stored = JSON.parse(window.localStorage.getItem(GUEST_PROJECTS_STORAGE_KEY) ?? '[]')
+        const updated = stored.map(p =>
+          p.id === activeProjectId ? { ...p, snapshot, updatedAt: new Date().toISOString() } : p
+        )
+        window.localStorage.setItem(GUEST_PROJECTS_STORAGE_KEY, JSON.stringify(updated))
+      } else if (authUser) {
+        await saveProjectSnapshot(authUser.uid, activeProjectId, snapshot)
       }
 
-      if (!authUser) {
-        setTransientStatus('error', 'Sign in first to save this project to the cloud.', 3600)
-        return
-      }
-
-      const savedProjectId = await saveProjectSnapshot({
-        uid: authUser.uid,
-        projectId: activeProjectId,
-        name: nextProjectName,
-        snapshot,
-      })
-
-      if (savedProjectId !== activeProjectId) {
-        navigate(`/app?id=${savedProjectId}`, { replace: true })
-      }
-
-      setActiveProjectId(savedProjectId)
-      setTransientStatus('success', 'Project saved to cloud. Open it from any device.', 2800)
+      setTransientStatus('success', 'Project saved successfully!', 2000)
     } catch (error) {
-      setTransientStatus(
-        'error',
-        error instanceof Error ? error.message : 'Project save failed. Please try again.',
-        4600,
-      )
+      console.error('Error saving project:', error)
+      setTransientStatus('error', 'Failed to save project', 3000)
     }
-  }
-
-  const goToDashboard = () => {
-    navigate('/dashboard')
-  }
-
-  const dismissGuidedMode = () => {
-    setShowGuidedMode(false)
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(GUIDED_MODE_STORAGE_KEY, 'dismissed')
-    }
-  }
-
-  const handleProjectSetupSubmit = (event) => {
-    event.preventDefault()
-
-    const nextName = (projectSetup.name || 'Untitled Project').trim() || 'Untitled Project'
-    const width = Number(projectSetup.width)
-    const depth = Number(projectSetup.depth)
-    const pixelsPerMeter = Number(projectSetup.pixelsPerMeter)
-
-    setProjectName(nextName)
-    setCanvasSettings({
-      width,
-      depth,
-      pixelsPerMeter,
-    })
-
-    setIsProjectSetupOpen(false)
-    navigate('/app', { replace: true })
-    setTransientStatus('success', 'New canvas created. Save to keep this project.', 2500)
   }
 
   return (
-    <div className={`app app-${uiMode} app-style-${styleVariant} ${showControls ? 'controls-open' : 'controls-closed'}`}>
-      <div className={`app-sidebar ${showControls ? 'open' : ''}`}>
-        {showControls && <SceneControls onHide={() => setShowControls(false)} />}
-      </div>
+    <div className="editor-shell">
+      {/* Header */}
+      <EditorHeader
+        projectName={projectName}
+        onSave={handleSave}
+        is3DMode={is3DMode}
+        onToggleMode={toggle3DMode}
+        onToggleSidebar={handleToggleSidebar}
+        isSidebarOpen={isSidebarOpen}
+      />
 
-      <div className="app-main">
-        <div
-          className={`app-topbar ${isTopbarOpen ? 'open' : ''}`}
-          role="toolbar"
-          aria-label="Editor actions"
+      {/* Status Bar */}
+      <StatusBar
+        message={saveMessage}
+        type={saveState}
+        onClose={() => setTransientStatus('idle', '')}
+      />
+
+      <div className="editor-main">
+        {/* Side Panel */}
+        <SidePanel
+          isOpen={isSidebarOpen}
+          onToggle={handleToggleSidebar}
+          title="Scene Controls"
         >
-          <button
-            type="button"
-            className="app-topbar-handle"
-            onClick={() => setIsTopbarOpen((current) => !current)}
-            aria-label={isTopbarOpen ? 'Hide action tray' : 'Show action tray'}
-            title={isTopbarOpen ? 'Hide actions' : 'Show actions'}
-          >
-            <ControlIcon name={isTopbarOpen ? 'hide' : 'show'} size={14} />
-          </button>
-          <div className="app-topbar-tray">
-            <div className="app-primary-actions" role="group" aria-label="Project actions">
-              <button
-                type="button"
-                className="editor-action-btn icon-only"
-                onClick={goToDashboard}
-                aria-label="Open dashboard"
-                title="Dashboard"
-              >
-                <ControlIcon name="planner" size={16} />
-              </button>
+          <SceneControls onHide={() => setShowControls(false)} />
+        </SidePanel>
 
-              <button
-                type="button"
-                className={`editor-action-btn icon-only save-btn ${saveState === 'success' ? 'saved' : ''}`}
-                onClick={handleSaveProject}
-                disabled={saveState === 'saving' || isProjectLoading}
-                aria-label={saveState === 'saving' ? 'Saving project' : 'Save project'}
-                title={saveState === 'saving' ? 'Saving...' : 'Save project'}
-              >
-                <ControlIcon name="preview" size={16} />
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className="toggle-controls-btn icon-only"
-              onClick={() => setShowControls((value) => !value)}
-              aria-label={showControls ? 'Hide controls' : 'Show controls'}
-              title={showControls ? 'Hide controls' : 'Show controls'}
-            >
-              <ControlIcon name={showControls ? 'hide' : 'show'} size={16} />
-            </button>
-
-            <button
-              type="button"
-              className="editor-action-btn icon-only"
-              onClick={() => setShowGuidedMode(true)}
-              aria-label="Show tips"
-              title="Tips"
-            >
-              <ControlIcon name="help" size={16} />
-            </button>
-
-            <ThemeToggle variant="editor" showLabel={false} />
-          </div>
-        </div>
-
-        {!!saveMessage && (
-          <div className={`editor-status-badge ${saveState === 'error' ? 'error' : ''}`}>
-            {saveMessage}
-          </div>
-        )}
-
-        {showGuidedMode && (
-          <div className="guided-overlay" role="dialog" aria-modal="true">
-            <div className="guided-card">
-              <h3>Quick Start</h3>
-              <ol>
-                <li>Draw a room by dragging on the canvas.</li>
-                <li>Select a room, then click 3D to visualize.</li>
-                <li>Pick furniture and click in 3D to place it.</li>
-              </ol>
-              <div className="guided-actions">
-                <button type="button" onClick={dismissGuidedMode}>Got it</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isTouchDevice && (
-          <div className="mobile-editor-quickbar" role="toolbar" aria-label="Mobile editor controls">
-            <button type="button" onClick={() => setShowControls((value) => !value)}>
-              {showControls ? 'Hide Tools' : 'Show Tools'}
-            </button>
-            <button
-              type="button"
-              className={uiMode === 'draw' ? 'active' : ''}
-              onClick={() => setUiMode('draw')}
-            >
-              2D
-            </button>
-            <button
-              type="button"
-              className={uiMode === 'visualize' ? 'active' : ''}
-              onClick={openVisualizeMode}
-              disabled={!floorPlan.rooms.length}
-            >
-              3D
-            </button>
-            {uiMode === 'visualize' && (
-              <>
-                <button
-                  type="button"
-                  className={cameraMode === 'orbit' ? 'active' : ''}
-                  onClick={() => setCameraMode('orbit')}
-                >
-                  Orbit
-                </button>
-                <button
-                  type="button"
-                  className={cameraMode === 'top' ? 'active' : ''}
-                  onClick={() => setCameraMode('top')}
-                >
-                  Top
-                </button>
-                <button
-                  type="button"
-                  className={cameraMode === 'firstPerson' ? 'active' : ''}
-                  onClick={() => setCameraMode('firstPerson')}
-                  disabled={!floorPlan.rooms.length}
-                >
-                  FP
-                </button>
-              </>
+        {/* Canvas Area */}
+        <motion.div
+          className="editor-canvas-area"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <CanvasContainer is3DMode={is3DMode} isLoading={isProjectLoading}>
+            {is3DMode ? (
+              <Canvas3D
+                cameraMode={cameraMode}
+                preset={activePreset}
+                onFirstPersonLockChange={setIsFirstPersonLocked}
+                isTouchDevice={isTouchDevice}
+              />
+            ) : (
+              <Canvas2D
+                onHide={() => setShowControls(false)}
+                isTouchDevice={isTouchDevice}
+              />
             )}
+          </CanvasContainer>
+        </motion.div>
+
+        {/* Properties Panel */}
+        <SidePanel
+          isOpen={isPropertiesPanelOpen}
+          onToggle={handleToggleProperties}
+          title="Properties"
+        >
+          <div className="editor-properties-panel">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <h4>Selected Object</h4>
+              <p>No object selected</p>
+            </motion.div>
           </div>
-        )}
+        </SidePanel>
 
-        <div className="app-canvas-container">
-          {uiMode === 'draw' ? (
-            <Canvas2D isTouchDevice={isTouchDevice} />
-          ) : (
-            <Canvas3D
-              cameraMode={cameraMode}
-              preset={activePreset}
-              isTouchDevice={isTouchDevice}
-              onFirstPersonLockChange={setIsFirstPersonLocked}
-            />
-          )}
+        {/* Toolbar */}
+        <Toolbar
+          activeTool={activeTool}
+          onToolChange={handleToolChange}
+          is3DMode={is3DMode}
+          onToggleMode={toggle3DMode}
+        />
 
-          {uiMode === 'visualize' && cameraMode === 'firstPerson' && !isTouchDevice && (
-            <>
-              {isFirstPersonLocked ? (
-                <div className="crosshair" aria-hidden="true" />
-              ) : (
-                <div className="fp-help">
-                  Click inside the 3D scene to enter first-person mode. Press Esc to
-                  release cursor.
-                </div>
-              )}
-            </>
-          )}
-
-          {uiMode === 'visualize' && isTouchDevice && (
-            <div className="fp-help mobile-help">
-              {cameraMode === 'firstPerson'
-                ? 'Use joystick to move and swipe on right side to look around.'
-                : 'Touch: drag to rotate, pinch to zoom, two-finger drag to pan.'}
-            </div>
-          )}
-        </div>
-
-        {isProjectSetupOpen && (
-          <div className="project-setup-overlay" role="dialog" aria-modal="true" aria-label="New project setup">
-            <form className="project-setup-card" onSubmit={handleProjectSetupSubmit}>
-              <h3>Start New Project</h3>
-              <p>Set your project name and initial canvas size before you begin.</p>
-
-              <label>
-                Project Name
-                <input
-                  type="text"
-                  value={projectSetup.name}
-                  onChange={(e) => setProjectSetup((current) => ({ ...current, name: e.target.value }))}
-                  placeholder="My Project"
-                  required
-                />
-              </label>
-
-              <div className="project-setup-grid">
-                <label>
-                  Canvas Width (m)
-                  <input
-                    type="number"
-                    min="6"
-                    max="200"
-                    step="1"
-                    value={projectSetup.width}
-                    onChange={(e) => setProjectSetup((current) => ({ ...current, width: Number(e.target.value) }))}
-                    required
-                  />
-                </label>
-                <label>
-                  Canvas Depth (m)
-                  <input
-                    type="number"
-                    min="6"
-                    max="200"
-                    step="1"
-                    value={projectSetup.depth}
-                    onChange={(e) => setProjectSetup((current) => ({ ...current, depth: Number(e.target.value) }))}
-                    required
-                  />
-                </label>
-                <label>
-                  Pixels / Meter
-                  <input
-                    type="number"
-                    min="16"
-                    max="140"
-                    step="1"
-                    value={projectSetup.pixelsPerMeter}
-                    onChange={(e) =>
-                      setProjectSetup((current) => ({ ...current, pixelsPerMeter: Number(e.target.value) }))
-                    }
-                    required
-                  />
-                </label>
-              </div>
-
-              <button type="submit" className="project-setup-submit">Create Canvas</button>
-            </form>
-          </div>
-        )}
+        {/* Quick Access Panel */}
+        <QuickAccessPanel onAction={(id) => console.log('Quick action:', id)} />
       </div>
     </div>
   )
 }
 
-export default App
+export default Editor

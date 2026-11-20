@@ -1,1 +1,695 @@
-/* Editor page styles. */
+
+:root {
+  --primary: #c07a45;
+  --primary-hover: #a8632e;
+  --primary-light: #fdf0e6;
+  --primary-dark: #8b5a2b;
+
+  --secondary: #3a2e24;
+  --secondary-light: #8a7260;
+  --secondary-lighter: #a8937e;
+
+  --background: #faf7f4;
+  --background-light: #ffffff;
+  --background-dark: #f5f0e8;
+  --background-darker: #e8e0d6;
+
+  --text: #3a2e24;
+  --text-secondary: #8a7260;
+  --text-muted: #a8937e;
+  --text-inverse: #ffffff;
+
+  --border: #e8e0d6;
+  --border-light: #f0e8e0;
+  --border-dark: #d8cfc4;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.12);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --transition: 0.3s ease;
+  --transition-fast: 0.15s ease;
+  --transition-slow: 0.5s ease;
+
+  --sidebar-width: 320px;
+  --properties-width: 280px;
+  --toolbar-height: 60px;
+  --header-height: 60px;
+}
+
+/* Editor Shell */
+.editor-shell {
+  height: 100vh;
+  min-height: 0;
+  background: var(--background);
+  color: var(--text);
+  font-family: 'Manrope', sans-serif;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Editor Header */
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--header-height);
+  padding: 0 1.5rem;
+  background: var(--background-light);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+.editor-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.editor-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-menu-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.editor-menu-btn svg {
+  flex-shrink: 0;
+}
+
+.editor-header-title {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-header-title h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-header-mode {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.editor-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.editor-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--background);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-action-btn:hover:not(:disabled) {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.editor-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.editor-action-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.editor-action-btn-primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.editor-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.editor-mode-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--background);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-mode-toggle-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.editor-help-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--background);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-help-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Status Bar */
+.editor-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--background-light);
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.875rem;
+  position: sticky;
+  top: var(--header-height);
+  z-index: 99;
+}
+
+.editor-status-bar-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-status-bar-close:hover {
+  background: var(--background);
+}
+
+/* Editor Main */
+.editor-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Side Panel */
+.editor-side-panel {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  height: 100%;
+  background: var(--background-light);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: all var(--transition);
+}
+
+.editor-side-panel.closed {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.editor-side-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border-light);
+  transition: all var(--transition);
+}
+
+.editor-side-panel-header h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.editor-side-panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editor-side-panel-toggle:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.editor-side-panel-content {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+  transition: all var(--transition);
+}
+
+.editor-side-panel.closed .editor-side-panel-content {
+  padding: 0;
+}
+
+/* Canvas Area */
+.editor-canvas-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  position: relative;
+  overflow: hidden;
+  background: var(--background-dark);
+}
+
+/* Canvas Container */
+.editor-canvas-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.editor-canvas-loading {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-darker);
+  color: var(--text-secondary);
+}
+
+.editor-loading-spinner {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  margin-bottom: 1rem;
+}
+
+.editor-loading-spinner-inner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--primary);
+  transform: translate(-50%, -50%) rotate(0deg);
+  transform-origin: center;
+}
+
+/* Toolbar */
+.editor-toolbar {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+}
+
+.editor-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.editor-toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--background);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.editor-toolbar-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.editor-toolbar-btn.active {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.editor-toolbar-btn-label {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.editor-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-left: 1rem;
+  border-radius: var(--radius-xl);
+  background: var(--background);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.editor-mode-toggle:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.editor-mode-toggle-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.editor-mode-toggle-switch {
+  position: absolute;
+  top: 50%;
+  left: 0.5rem;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all var(--transition-fast);
+}
+
+/* Quick Access Panel */
+.editor-quick-access {
+  position: fixed;
+  top: calc(var(--header-height) + 1rem);
+  left: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 90;
+}
+
+.editor-quick-access-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--background-light);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.editor-quick-access-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateX(3px);
+  box-shadow: var(--shadow-md);
+}
+
+.editor-quick-access-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 0.5rem;
+  border-radius: var(--radius-xl);
+  background: var(--background);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* Properties Panel */
+.editor-properties-panel {
+  padding: 1rem;
+}
+
+.editor-properties-panel h4 {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.editor-properties-panel p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  :root {
+    --sidebar-width: 280px;
+    --properties-width: 240px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .editor-quick-access {
+    display: none;
+  }
+
+  .editor-side-panel.closed {
+    width: 0;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 0;
+    --properties-width: 0;
+    --toolbar-height: 50px;
+    --header-height: 50px;
+  }
+
+  .editor-header {
+    padding: 0 1rem;
+  }
+
+  .editor-menu-btn span {
+    display: none;
+  }
+
+  .editor-header-title h1 {
+    font-size: 1rem;
+  }
+
+  .editor-header-mode {
+    display: none;
+  }
+
+  .editor-header-actions {
+    display: none;
+  }
+
+  .editor-header-controls {
+    gap: 0.5rem;
+  }
+
+  .editor-mode-toggle-btn span {
+    display: none;
+  }
+
+  .editor-status-bar {
+    font-size: 0.75rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .editor-side-panel {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    width: 100%;
+    height: auto;
+    max-height: 50vh;
+    z-index: 100;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .editor-side-panel.closed {
+    display: none;
+  }
+
+  .editor-side-panel-content {
+    max-height: calc(50vh - 40px);
+  }
+
+  .editor-toolbar {
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    transform: none;
+    justify-content: center;
+  }
+
+  .editor-mode-toggle {
+    display: none;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Selection */
+::selection {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}

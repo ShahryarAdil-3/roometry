@@ -1,4 +1,5 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
@@ -11,6 +12,7 @@
       "@pages/*": ["src/pages/*"],
       "@scenes/*": ["src/scenes/*"],
       "@store/*": ["src/store/*"],
+      "@styles/*": ["src/styles/*"],
       "@utils/*": ["src/utils/*"]
     }
   }

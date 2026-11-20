@@ -1,1 +1,18 @@
-/* Auth page styles. */
+/* Auth pages — page-specific helpers */
+
+.auth-page h1,
+.auth-page h2 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  letter-spacing: -0.02em;
+}
+
+.auth-page button:not(:disabled) {
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

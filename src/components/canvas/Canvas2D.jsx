@@ -10,7 +10,6 @@ import {
 import CanvasShell from './2d/CanvasShell'
 import CanvasToolbar from './2d/CanvasToolbar'
 import FocusControls from './2d/FocusControls'
-import MobileControls from './2d/MobileControls'
 import WorkspaceOverlay from './2d/WorkspaceOverlay'
 import Rulers from './2d/Rulers'
 import RoomsLayer from './2d/RoomsLayer'
@@ -25,7 +24,7 @@ const MAX_VIEW_ZOOM = 4
 const RULER_GUTTER = 18
 const GRID_UNIT_METERS = 1
 
-export default function Canvas2D({ isTouchDevice = false }) {
+export default function Canvas2D() {
   const floorPlan = useSceneStore((state) => state.floorPlan)
   const createRoom = useSceneStore((state) => state.createRoom)
   const moveRoom = useSceneStore((state) => state.moveRoom)
@@ -58,6 +57,9 @@ export default function Canvas2D({ isTouchDevice = false }) {
   const [showBottomChrome, setShowBottomChrome] = useState(true)
   const [confirmDeleteRoomId, setConfirmDeleteRoomId] = useState(null)
   const lastFitKeyRef = useRef('')
+  const didDrawRef = useRef(false)
+  const wheelHandlerRef = useRef(null)
+  const draftRef = useRef(null)
 
   const pixelsPerMeter = canvas.pixelsPerMeter
   const horizontalLimit = canvas.width / 2
@@ -112,6 +114,8 @@ export default function Canvas2D({ isTouchDevice = false }) {
       return
     }
 
+    didDrawRef.current = false
+
     if (event.button === 1 || event.button === 2 || (event.button === 0 && event.shiftKey)) {
       if (!canvasRect) {
         return
@@ -140,58 +144,65 @@ export default function Canvas2D({ isTouchDevice = false }) {
       y: event.clientY,
     }
 
-    setDraftRect({
+    const draft = {
       start,
       current: start,
       rect,
-    })
+    }
+
+    draftRef.current = draft
+    setDraftRect(draft)
   }
 
   const updateDraw = (event) => {
-    setDraftRect((current) => {
-      if (!current) {
-        return current
-      }
+    const current = draftRef.current
+    if (!current) {
+      return
+    }
 
-      return {
-        ...current,
-        current: {
-          x: event.clientX,
-          y: event.clientY,
-        },
-      }
-    })
+    const next = {
+      ...current,
+      current: {
+        x: event.clientX,
+        y: event.clientY,
+      },
+    }
+
+    draftRef.current = next
+    setDraftRect(next)
   }
 
   const endDraw = () => {
-    setDraftRect((current) => {
-      if (!current) {
-        return current
-      }
+    const current = draftRef.current
+    if (!current) {
+      return
+    }
 
-      const widthPx = Math.abs(current.current.x - current.start.x)
-      const heightPx = Math.abs(current.current.y - current.start.y)
-      if (widthPx < MIN_DRAW_SIZE || heightPx < MIN_DRAW_SIZE) {
-        return null
-      }
+    draftRef.current = null
+    setDraftRect(null)
 
-      const startWorld = toWorldFromScreen(current.start, current.rect, pixelsPerMeter, view)
-      const endWorld = toWorldFromScreen(current.current, current.rect, pixelsPerMeter, view)
-      const minX = snap(Math.min(startWorld.x, endWorld.x))
-      const maxX = snap(Math.max(startWorld.x, endWorld.x))
-      const minZ = snap(Math.min(startWorld.z, endWorld.z))
-      const maxZ = snap(Math.max(startWorld.z, endWorld.z))
+    const widthPx = Math.abs(current.current.x - current.start.x)
+    const heightPx = Math.abs(current.current.y - current.start.y)
+    if (widthPx < MIN_DRAW_SIZE || heightPx < MIN_DRAW_SIZE) {
+      return
+    }
 
-      createRoom({
-        x: minX,
-        z: minZ,
-        width: maxX - minX,
-        depth: maxZ - minZ,
-        height: selectedRoom?.height ?? 3,
-        wallThickness: selectedRoom?.wallThickness ?? 0.12,
-      })
+    const startWorld = toWorldFromScreen(current.start, current.rect, pixelsPerMeter, view)
+    const endWorld = toWorldFromScreen(current.current, current.rect, pixelsPerMeter, view)
+    const minX = snap(Math.min(startWorld.x, endWorld.x))
+    const maxX = snap(Math.max(startWorld.x, endWorld.x))
+    const minZ = snap(Math.min(startWorld.z, endWorld.z))
+    const maxZ = snap(Math.max(startWorld.z, endWorld.z))
 
-      return null
+    didDrawRef.current = true
+
+    createRoom({
+      x: minX,
+      z: minZ,
+      width: maxX - minX,
+      depth: maxZ - minZ,
+      height: selectedRoom?.height ?? 3,
+      wallThickness: selectedRoom?.wallThickness ?? 0.12,
     })
   }
 
@@ -478,6 +489,20 @@ export default function Canvas2D({ isTouchDevice = false }) {
     )
   }
 
+  wheelHandlerRef.current = handleWheel
+
+  useEffect(() => {
+    const element = canvasRef.current
+    if (!element) {
+      return undefined
+    }
+
+    const onWheel = (event) => wheelHandlerRef.current?.(event)
+    element.addEventListener('wheel', onWheel, { passive: false })
+
+    return () => element.removeEventListener('wheel', onWheel)
+  }, [])
+
   const toggleCanvasFocus = () => {
     if (canvasFocusMode) {
       setShowTopChrome(true)
@@ -494,16 +519,6 @@ export default function Canvas2D({ isTouchDevice = false }) {
       clampView({
         ...current,
         zoom: current.zoom * factor,
-      }),
-    )
-  }
-
-  const panBy = (dx, dz) => {
-    setView((current) =>
-      clampView({
-        ...current,
-        x: current.x + dx,
-        z: current.z + dz,
       }),
     )
   }
@@ -663,8 +678,13 @@ export default function Canvas2D({ isTouchDevice = false }) {
             endDraw()
             endPan()
           }}
-          onWheel={handleWheel}
-          onClick={() => selectRoom(null)}
+          onClick={() => {
+            if (didDrawRef.current) {
+              didDrawRef.current = false
+              return
+            }
+            selectRoom(null)
+          }}
           onContextMenu={(event) => event.preventDefault()}
           role="application"
           aria-label="Floor map drawing canvas"
@@ -686,18 +706,6 @@ export default function Canvas2D({ isTouchDevice = false }) {
               onCenterSelected={centerSelectedRoom}
               onQuickVisualize={quickVisualize}
               onExitFocus={toggleCanvasFocus}
-              selectedRoom={selectedRoom}
-            />
-          )}
-
-          {isTouchDevice && (
-            <MobileControls
-              onPanBy={panBy}
-              onResetView={resetView}
-              onZoomIn={() => zoomBy(1.2)}
-              onZoomOut={() => zoomBy(0.84)}
-              onFitCanvas={fitCanvasToView}
-              onQuickVisualize={quickVisualize}
               selectedRoom={selectedRoom}
             />
           )}
