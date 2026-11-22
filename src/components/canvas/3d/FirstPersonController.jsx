@@ -17,9 +17,6 @@ export default function FirstPersonController({
   settings,
   onLockChange,
   allowGrab = true,
-  isTouchDevice = false,
-  mobileMoveRef,
-  mobileLookRef,
   setNearbyFurnitureId,
   grabbedFurnitureId,
   setGrabbedFurnitureId,
@@ -32,8 +29,6 @@ export default function FirstPersonController({
   const isLockedRef = useRef(false)
   const bobTimeRef = useRef(0)
   const eyeLevelRef = useRef(eyeHeight)
-  const yawRef = useRef(0)
-  const pitchRef = useRef(0)
   const nearbyFurnitureRef = useRef(null)
   const pressedRef = useRef({
     KeyW: false,
@@ -91,15 +86,6 @@ export default function FirstPersonController({
     eyeLevelRef.current = eyeHeight
     camera.position.y = eyeHeight
 
-    const initialEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ')
-    yawRef.current = initialEuler.y
-    pitchRef.current = initialEuler.x
-
-    if (isTouchDevice) {
-      isLockedRef.current = true
-      onLockChange?.(true)
-    }
-
     const onKeyDown = (event) => {
       if (event.code in pressedRef.current) {
         pressedRef.current[event.code] = true
@@ -124,19 +110,8 @@ export default function FirstPersonController({
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
-
-      if (mobileMoveRef?.current) {
-        mobileMoveRef.current = { x: 0, y: 0 }
-      }
-      if (mobileLookRef?.current) {
-        mobileLookRef.current = { x: 0, y: 0 }
-      }
-
-      if (isTouchDevice) {
-        onLockChange?.(false)
-      }
     }
-  }, [allowGrab, camera, eyeHeight, isTouchDevice, onLockChange, setGrabbedFurnitureId, mobileMoveRef, mobileLookRef])
+  }, [allowGrab, camera, eyeHeight, onLockChange, setGrabbedFurnitureId])
 
   const collidesWithWalls = useCallback(
     (x, z, y) => {
@@ -301,21 +276,6 @@ export default function FirstPersonController({
     let moveX = 0
     let moveZ = 0
 
-    if (isTouchDevice && mobileLookRef?.current) {
-      const deltaLookX = mobileLookRef.current.x
-      const deltaLookY = mobileLookRef.current.y
-
-      if (deltaLookX !== 0 || deltaLookY !== 0) {
-        yawRef.current -= deltaLookX * 0.0042 * settings.lookSensitivity
-        pitchRef.current -= deltaLookY * 0.0042 * settings.lookSensitivity
-        pitchRef.current = THREE.MathUtils.clamp(pitchRef.current, -1.35, 1.35)
-
-        camera.rotation.set(pitchRef.current, yawRef.current, 0, 'YXZ')
-        mobileLookRef.current.x = 0
-        mobileLookRef.current.y = 0
-      }
-    }
-
     if (keys.KeyW || keys.ArrowUp) {
       moveX += forwardVector.x
       moveZ += forwardVector.z
@@ -331,14 +291,6 @@ export default function FirstPersonController({
     if (keys.KeyA || keys.ArrowLeft) {
       moveX -= rightVector.x
       moveZ -= rightVector.z
-    }
-
-    if (isTouchDevice && mobileMoveRef?.current) {
-      const mobileX = mobileMoveRef.current.x
-      const mobileY = mobileMoveRef.current.y
-
-      moveX += rightVector.x * mobileX + forwardVector.x * -mobileY
-      moveZ += rightVector.z * mobileX + forwardVector.z * -mobileY
     }
 
     const isCrouching = keys.ControlLeft || keys.ControlRight
@@ -369,7 +321,7 @@ export default function FirstPersonController({
       bobTimeRef.current = 0
     }
 
-    if (!isTouchDevice && keys.Space && isGroundedRef.current) {
+    if (keys.Space && isGroundedRef.current) {
       velocityYRef.current = jumpVelocity
       isGroundedRef.current = false
     }
@@ -429,15 +381,10 @@ export default function FirstPersonController({
     }
   })
 
-  if (isTouchDevice) {
-    return null
-  }
-
   return (
     <PointerLockControls
       ref={controlsRef}
       makeDefault
-      selector=".app canvas"
       pointerSpeed={settings.lookSensitivity}
       onLock={() => {
         isLockedRef.current = true

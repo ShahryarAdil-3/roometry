@@ -105,13 +105,13 @@ export default function PlannerControls({
         <p className="subtle-note">
           <span className="icon-label">
             <ControlIcon name="pan" size={14} />
-            Move canvas: drag with 2 fingers on mobile, Shift + drag on desktop
+            Move canvas: Shift + drag
           </span>
         </p>
         <p className="subtle-note">
           <span className="icon-label">
             <ControlIcon name="zoom" size={14} />
-            Zoom: pinch on mobile, mouse wheel on desktop
+            Zoom: mouse wheel
           </span>
         </p>
 

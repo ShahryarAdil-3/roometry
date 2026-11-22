@@ -2,16 +2,14 @@
 import { Canvas } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import Room from '@scenes/Room'
 import { useSceneStore } from '@store/useSceneStore'
 import CameraSync from './3d/CameraSync'
 import FirstPersonController from './3d/FirstPersonController'
-import MobileJoystick from './3d/MobileJoystick'
-import MobileLookPad from './3d/MobileLookPad'
 
-export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange, isTouchDevice = false }) {
+export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange }) {
   const room = useSceneStore((state) => state.room)
   const furniture = useSceneStore((state) => state.furniture)
   const addFurniture = useSceneStore((state) => state.addFurniture)
@@ -20,8 +18,6 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange, 
   const setFurniturePlacement = useSceneStore((state) => state.setFurniturePlacement)
   const firstPerson = useSceneStore((state) => state.firstPerson)
   const floorPlan = useSceneStore((state) => state.floorPlan)
-  const mobileMoveRef = useRef({ x: 0, y: 0 })
-  const mobileLookRef = useRef({ x: 0, y: 0 })
   const [nearbyFurnitureId, setNearbyFurnitureId] = useState(null)
   const [grabbedFurnitureId, setGrabbedFurnitureId] = useState(null)
   const [ghostPosition, setGhostPosition] = useState(null)
@@ -349,9 +345,6 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange, 
           settings={firstPerson}
           onLockChange={onFirstPersonLockChange}
           allowGrab={!placementTemplate && !movingFurnitureId}
-          isTouchDevice={isTouchDevice}
-          mobileMoveRef={mobileMoveRef}
-          mobileLookRef={mobileLookRef}
           setNearbyFurnitureId={setNearbyFurnitureId}
           grabbedFurnitureId={grabbedFurnitureId}
           setGrabbedFurnitureId={setGrabbedFurnitureId}
@@ -361,17 +354,12 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange, 
           enablePan
           enableDamping
           dampingFactor={0.08}
-          rotateSpeed={isTouchDevice ? 0.75 : 1}
           zoomSpeed={0.85}
           panSpeed={0.7}
           minDistance={minDistance}
           maxDistance={maxDistance}
           maxPolarAngle={resolvedCameraMode === 'top' ? Math.PI / 2.01 : Math.PI / 2.02}
           target={preset.target}
-          touches={{
-            ONE: THREE.TOUCH.ROTATE,
-            TWO: THREE.TOUCH.DOLLY_PAN,
-          }}
         />
       )}
 
@@ -446,14 +434,6 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange, 
         </Html>
       )}
 
-      {useFirstPerson && isTouchDevice && (
-        <Html fullscreen>
-          <div className="mobile-fp-overlay" role="presentation">
-            <MobileJoystick moveRef={mobileMoveRef} />
-            <MobileLookPad lookRef={mobileLookRef} />
-          </div>
-        </Html>
-      )}
     </Canvas>
   )
 }

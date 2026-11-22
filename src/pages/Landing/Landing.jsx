@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowRight, Cuboid, Map, Wand2, Sparkles, Users, LayoutDashboard, MousePointer2 } from 'lucide-react'
 import ThemeToggle from '@components/ThemeToggle'
 import './Landing.css'
@@ -19,18 +19,18 @@ const FloatingParticles = () => {
           animate={{
             opacity: [0.2, 0.4, 0.2],
             scale: [0.5, 1, 0.5],
-            x: [0, Math.random() * 200 - 100, 0],
-            y: [0, Math.random() * 200 - 100, 0]
+            x: [0, ((i * 47) % 200) - 100, 0],
+            y: [0, ((i * 31) % 200) - 100, 0]
           }}
           transition={{
-            duration: 4 + Math.random() * 4,
+            duration: 4 + (i % 5),
             repeat: Infinity,
             ease: 'easeInOut'
           }}
           style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            delay: `${Math.random() * 2}s`
+            left: `${(i * 37) % 100}%`,
+            top: `${(i * 53) % 100}%`,
+            animationDelay: `${(i % 10) * 0.2}s`
           }}
         />
       ))}
@@ -62,7 +62,7 @@ const PreviewCard = ({ title, description, icon: Icon, delay = 0 }) => {
           }}
           transition={{ duration: 0.3 }}
         >
-          <Icon size={28} />
+          {React.createElement(Icon, { size: 28 })}
         </motion.div>
         <h3 className="preview-card-title">{title}</h3>
         <p className="preview-card-description">{description}</p>
@@ -160,7 +160,7 @@ const FeatureCard = ({ icon: Icon, title, description, index, delay = 0 }) => {
         }}
         transition={{ duration: 0.3 }}
       >
-        <Icon size={24} />
+        {React.createElement(Icon, { size: 24 })}
       </motion.div>
       <div className="feature-card-content">
         <h3 className="feature-card-title">{title}</h3>
@@ -458,6 +458,8 @@ const TestimonialsSection = () => {
 
 // Final CTA section
 const FinalCTA = () => {
+  const navigate = useNavigate()
+
   return (
     <section className="final-cta">
       <motion.div
@@ -496,10 +498,17 @@ const FinalCTA = () => {
             <span>Get Started Free</span>
             <ArrowRight size={16} />
           </Link>
-          <Link to="/dashboard" className="final-cta-button-secondary">
+          <button
+            type="button"
+            className="final-cta-button-secondary"
+            onClick={() => {
+              window.localStorage.setItem('roometry_guest_mode', 'true')
+              navigate('/dashboard', { replace: true })
+            }}
+          >
             <MousePointer2 size={16} />
             <span>Try Demo</span>
-          </Link>
+          </button>
         </motion.div>
       </motion.div>
     </section>
@@ -508,8 +517,15 @@ const FinalCTA = () => {
 
 // Main Landing component
 function Landing() {
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setIsMounted(true))
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
   return (
-    <div className="landing-shell">
+    <div className={`landing-shell ${isMounted ? 'landing-mounted' : ''}`}>
       {/* Header */}
       <motion.header
         className="landing-header"

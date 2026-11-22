@@ -512,9 +512,6 @@ const DashboardHeader = ({ user, onLogout, onCreate, isGuest }) => {
 const QuickActions = ({ onAction }) => {
   const actions = [
     { icon: LayoutGrid, label: 'New Project', value: 'new' },
-    { icon: Cuboid, label: 'Templates', value: 'templates' },
-    { icon: Heart, label: 'Favorites', value: 'favorites' },
-    { icon: Share2, label: 'Shared', value: 'shared' }
   ]
 
   return (
@@ -668,17 +665,19 @@ function Dashboard() {
         return
       }
 
+      navigate('/login', { replace: true, state: { from: '/dashboard' } })
       setRooms([])
       setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [loadCloudProjects])
+  }, [loadCloudProjects, navigate])
 
   const handleLogout = async () => {
     try {
       await signOut(auth)
-      navigate('/')
+      window.localStorage.removeItem('roometry_guest_mode')
+      navigate('/', { replace: true })
     } catch (error) {
       console.error('Error logging out:', error)
     }
@@ -729,7 +728,10 @@ function Dashboard() {
       const updated = [newRoom, ...stored]
       window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
       setRooms(updated)
-      navigate('/app', { state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan } })
+      navigate(`/app/${encodeURIComponent(newRoom.id)}`, {
+        replace: true,
+        state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan },
+      })
       return
     }
 
@@ -742,14 +744,19 @@ function Dashboard() {
       })
       newRoom.id = docRef.id
       setRooms([newRoom, ...rooms])
-      navigate('/app', { state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan } })
+      navigate(`/app/${encodeURIComponent(newRoom.id)}`, {
+        replace: true,
+        state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan },
+      })
     } catch (error) {
       console.error('Error creating project:', error)
     }
   }
 
   const handleOpenProject = (room) => {
-    navigate('/app', { state: { snapshot: room.snapshot, floorPlan: room.floorPlan } })
+    navigate(`/app/${encodeURIComponent(room.id)}`, {
+      state: { snapshot: room.snapshot, floorPlan: room.floorPlan },
+    })
   }
 
   const handleDeleteProject = async (room) => {
@@ -807,15 +814,6 @@ function Dashboard() {
     switch (action) {
       case 'new':
         setIsCreateModalOpen(true)
-        break
-      case 'templates':
-        navigate('/templates')
-        break
-      case 'favorites':
-        navigate('/favorites')
-        break
-      case 'shared':
-        navigate('/shared')
         break
     }
   }

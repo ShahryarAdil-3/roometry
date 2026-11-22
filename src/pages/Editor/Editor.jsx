@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from 'framer-motion'
 import {
   LayoutGrid,
@@ -39,11 +39,6 @@ const GUIDED_MODE_STORAGE_KEY = 'roometry-guided-mode'
 const WALL_KEYS = ['north', 'south', 'east', 'west']
 
 const cloneSerializable = (value) => JSON.parse(JSON.stringify(value))
-
-const detectTouchDevice = () => {
-  if (typeof window === 'undefined') return false
-  return window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 820
-}
 
 const createSnapshotFromState = (state) =>
   cloneSerializable({
@@ -475,6 +470,7 @@ const QuickAccessPanel = ({ onAction }) => {
 function Editor() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { projectId: routeProjectId } = useParams()
 
   const cameraMode = useSceneStore((state) => state.cameraMode)
   const cameraPresets = useSceneStore((state) => state.cameraPresets)
@@ -486,11 +482,12 @@ function Editor() {
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
+  const resetScene = useSceneStore((state) => state.resetScene)
 
   const queryProjectId = useMemo(() => {
     const params = new URLSearchParams(location.search)
-    return params.get('id')
-  }, [location.search])
+    return routeProjectId ?? params.get('id')
+  }, [location.search, routeProjectId])
 
   const activePreset = useMemo(() => {
     const base = cameraPresets[cameraMode] ?? cameraPresets.orbit
@@ -530,7 +527,6 @@ function Editor() {
   const [saveState, setSaveState] = useState('idle')
   const [saveMessage, setSaveMessage] = useState('')
   const [projectName, setProjectName] = useState('Untitled Project')
-  const [isTouchDevice, setIsTouchDevice] = useState(detectTouchDevice)
   const [guestModePreference] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(GUEST_MODE_STORAGE_KEY) === 'true'
@@ -566,6 +562,82 @@ function Editor() {
       floorPlan: routeState.floorPlan ?? snapshot.floorPlan ?? { rooms: [] },
     }))
   }, [location.key, location.state, setCameraMode, setUiMode])
+
+  useEffect(() => {
+    if (!queryProjectId && !location.state?.snapshot && !location.state?.floorPlan) {
+      resetScene()
+      setCameraMode('top')
+      setUiMode('draw')
+      setProjectName('Untitled Project')
+    }
+  }, [location.key, location.state, queryProjectId, resetScene, setCameraMode, setUiMode])
+
+  useEffect(() => {
+    if (!queryProjectId || location.state?.snapshot || location.state?.floorPlan) {
+      return
+    }
+
+    let cancelled = false
+    setIsProjectLoading(true)
+
+    const loadDirectProject = async () => {
+      try {
+        let project = null
+
+        if (guestModePreference) {
+          const stored = JSON.parse(
+            window.localStorage.getItem(GUEST_PROJECTS_STORAGE_KEY) ?? '[]',
+          )
+          project = Array.isArray(stored)
+            ? stored.find((entry) => entry.id === queryProjectId)
+            : null
+        } else if (authUser) {
+          project = await fetchProjectSnapshot({
+            uid: authUser.uid,
+            projectId: queryProjectId,
+          })
+        }
+
+        if (cancelled) {
+          return
+        }
+
+        if (!project) {
+          navigate('/dashboard', { replace: true })
+          return
+        }
+
+        applySnapshotToStore({
+          ...(project.snapshot ?? {}),
+          floorPlan: project.floorPlan ?? project.snapshot?.floorPlan,
+        })
+        setCameraMode('top')
+        setUiMode('draw')
+        setProjectName(project.name ?? deriveProjectName(project.snapshot ?? {}))
+      } catch (error) {
+        console.error('Error loading project:', error)
+        navigate('/dashboard', { replace: true })
+      } finally {
+        if (!cancelled) {
+          setIsProjectLoading(false)
+        }
+      }
+    }
+
+    loadDirectProject()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    authUser,
+    guestModePreference,
+    location.state,
+    navigate,
+    queryProjectId,
+    setCameraMode,
+    setUiMode,
+  ])
 
   const setTransientStatus = (nextState, message, duration = 3000) => {
     setSaveState(nextState)
@@ -625,25 +697,6 @@ function Editor() {
     return () => unsubscribe()
   }, [])
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined
-
-    const mediaQuery = window.matchMedia('(pointer: coarse)')
-
-    const syncTouchState = () => {
-      setIsTouchDevice(detectTouchDevice())
-    }
-
-    syncTouchState()
-    mediaQuery.addEventListener('change', syncTouchState)
-    window.addEventListener('resize', syncTouchState)
-
-    return () => {
-      mediaQuery.removeEventListener('change', syncTouchState)
-      window.removeEventListener('resize', syncTouchState)
-    }
-  }, [])
-
   // Update project name from floor plan
   useEffect(() => {
     const state = useSceneStore.getState()
@@ -679,7 +732,12 @@ function Editor() {
         )
         window.localStorage.setItem(GUEST_PROJECTS_STORAGE_KEY, JSON.stringify(updated))
       } else if (authUser) {
-        await saveProjectSnapshot(authUser.uid, activeProjectId, snapshot)
+        await saveProjectSnapshot({
+          uid: authUser.uid,
+          projectId: activeProjectId,
+          name: projectName,
+          snapshot,
+        })
       }
 
       setTransientStatus('success', 'Project saved successfully!', 2000)
@@ -731,13 +789,9 @@ function Editor() {
                 cameraMode={cameraMode}
                 preset={activePreset}
                 onFirstPersonLockChange={setIsFirstPersonLocked}
-                isTouchDevice={isTouchDevice}
               />
             ) : (
-              <Canvas2D
-                onHide={() => setShowControls(false)}
-                isTouchDevice={isTouchDevice}
-              />
+              <Canvas2D onHide={() => setShowControls(false)} />
             )}
           </CanvasContainer>
         </motion.div>

@@ -1,5 +1,5 @@
 import React from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
 import { Dashboard, Editor, Landing, Login, Register } from '@pages'
@@ -12,7 +12,7 @@ const PageTransition = ({ children }) => {
       animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
       exit={{ opacity: 0, y: -14, scale: 0.995, filter: 'blur(2px)' }}
       transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-      className="min-h-screen w-full overflow-hidden"
+      className="min-h-screen w-full"
     >
       {children}
     </motion.main>
@@ -29,11 +29,19 @@ const AnimatedRoutes = () => {
         <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
         <Route path="/register" element={<PageTransition><Register /></PageTransition>} />
         <Route path="/dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
+        <Route path="/projects" element={<Navigate to="/dashboard" replace />} />
         <Route path="/app" element={<PageTransition><Editor /></PageTransition>} />
+        <Route path="/app/:projectId" element={<PageTransition><Editor /></PageTransition>} />
+        <Route path="/projects/:projectId" element={<ProjectRouteAlias />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>
   )
+}
+
+const ProjectRouteAlias = () => {
+  const { projectId } = useParams()
+  return <Navigate to={`/app/${encodeURIComponent(projectId)}`} replace />
 }
 
 function App() {

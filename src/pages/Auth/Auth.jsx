@@ -1,7 +1,7 @@
 // Authentication pages (login / register) — modern studio layout
 import React, { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '@appFirebase/firebase'
@@ -14,15 +14,15 @@ const AuthField = ({ icon: Icon, label, type = 'text', showToggle, showPassword,
   return (
     <label
       className={[
-        'block rounded-lg border bg-[#fbf9f5] px-3 py-2 transition-colors duration-200',
+        'auth-field',
         isFocused ? 'border-[#1e4636]' : 'border-[#ddd6cb]',
       ].join(' ')}
     >
-      <span className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-[#6e675f]">
-        <Icon size={14} />
+      <span className="auth-field-label">
+        {React.createElement(Icon, { size: 14 })}
         {label}
       </span>
-      <span className="mt-1 flex items-center gap-2">
+      <span className="auth-field-control">
         <input
           {...props}
           type={showToggle ? (showPassword ? 'text' : 'password') : type}
@@ -34,12 +34,12 @@ const AuthField = ({ icon: Icon, label, type = 'text', showToggle, showPassword,
             setIsFocused(false)
             props.onBlur?.(event)
           }}
-          className="w-full bg-transparent py-1 text-sm text-[#161410] outline-none placeholder:text-[#6e675f]/70"
+          className="auth-field-input"
         />
         {showToggle ? (
           <button
             type="button"
-            className="grid size-9 shrink-0 place-items-center rounded-md text-[#6e675f] transition-colors hover:text-[#161410]"
+            className="auth-password-toggle"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
             onClick={onTogglePassword}
           >
@@ -71,70 +71,76 @@ function Mark({ dark }) {
 
 const AuthShell = ({ title, subtitle, children, isRegister }) => {
   return (
-    <div className="auth-page grid min-h-screen bg-[#f3efe7] text-[#161410] lg:grid-cols-[1.05fr_0.95fr]">
-      <aside className="relative hidden flex-col justify-between bg-[#161410] px-12 py-10 text-[#f3efe7] lg:flex">
-        <Link to="/" className="flex items-center gap-2.5 text-sm tracking-[0.18em]">
+    <motion.div
+      className="auth-page"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.45 }}
+    >
+      <aside className="auth-story-panel">
+        <Link to="/" className="auth-brand auth-brand-light">
           <Mark dark />
-          ROOMETRY
+          <span>ROOMETRY</span>
         </Link>
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-[#9a7340]">From plan to presence</p>
-          <h1 className="mt-4 max-w-md text-5xl font-medium leading-tight">
+        <div className="auth-story-copy">
+          <p className="auth-eyebrow">From plan to presence</p>
+          <h1>
             Draw the room once. Walk it the same afternoon.
           </h1>
-          <ul className="mt-8 space-y-3 text-sm text-[#f3efe7]/75">
+          <ul>
             <li>Snapped walls, real metres, no sketch guesswork.</li>
             <li>Furniture stays on the same coordinates in 3D.</li>
             <li>Projects save to your account across devices.</li>
           </ul>
         </div>
-        <p className="text-xs text-[#f3efe7]/50">A studio for floor plans, not a moodboard.</p>
+        <p className="auth-story-footer">A studio for floor plans, not a moodboard.</p>
       </aside>
 
-      <main className="relative flex items-center justify-center px-5 py-10">
-        <div className="absolute right-5 top-5">
+      <main className="auth-main">
+        <div className="auth-theme-toggle">
           <ThemeToggle />
         </div>
 
-        <div className="w-full max-w-md">
-          <Link to="/" className="mb-8 flex items-center gap-2 text-sm tracking-[0.16em] lg:hidden">
-            <Mark />
-            ROOMETRY
-          </Link>
-
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#9a7340]">
+        <motion.div
+          className="auth-card"
+          initial={{ y: 24, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.08, duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <p className="auth-card-eyebrow">
             {isRegister ? 'New studio' : 'Welcome back'}
           </p>
-          <h2 className="mt-2 text-4xl font-medium">{title}</h2>
-          <p className="mt-2 text-sm text-[#6e675f]">{subtitle}</p>
+          <h2>{title}</h2>
+          <p className="auth-card-subtitle">{subtitle}</p>
 
-          <div className="mt-8">{children}</div>
+          <div className="auth-card-form">{children}</div>
 
-          <p className="mt-6 text-center text-sm text-[#6e675f]">
+          <p className="auth-switch">
             {isRegister ? (
               <>
                 Already have a studio?{' '}
-                <Link to="/login" className="font-medium text-[#1e4636] transition hover:text-[#163528]">
+                <Link to="/login">
                   Sign in
                 </Link>
               </>
             ) : (
               <>
                 New here?{' '}
-                <Link to="/register" className="font-medium text-[#1e4636] transition hover:text-[#163528]">
+                <Link to="/register">
                   Create a studio
                 </Link>
               </>
             )}
           </p>
-        </div>
+        </motion.div>
       </main>
-    </div>
+    </motion.div>
   )
 }
 
 export const Login = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -148,7 +154,10 @@ export const Login = () => {
 
     try {
       await signInWithEmailAndPassword(auth, email, password)
-      navigate('/dashboard')
+      const destination = location.state?.from && location.state.from !== '/login'
+        ? location.state.from
+        : '/dashboard'
+      navigate(destination, { replace: true })
     } catch (loginError) {
       setError(loginError.message)
     } finally {
@@ -227,7 +236,7 @@ export const Register = () => {
 
     try {
       await createUserWithEmailAndPassword(auth, email, password)
-      navigate('/dashboard')
+      navigate('/dashboard', { replace: true })
     } catch (registerError) {
       setError(registerError.message)
     } finally {
@@ -237,7 +246,7 @@ export const Register = () => {
 
   const handleGuestMode = () => {
     window.localStorage.setItem('roometry_guest_mode', 'true')
-    navigate('/app')
+    navigate('/dashboard', { replace: true })
   }
 
   return (
