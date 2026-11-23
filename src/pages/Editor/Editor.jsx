@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { AnimatePresence, motion, useAnimation, useMotionValue, useSpring } from 'framer-motion'
+import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import {
   LayoutGrid,
   Cuboid,
@@ -26,6 +26,7 @@ import { useSceneStore } from '@store/useSceneStore'
 import { SceneControls } from '@components/layout/Sidebar'
 import Canvas3D from '@components/canvas/Canvas3D'
 import Canvas2D from '@components/canvas/Canvas2D'
+import CanvasErrorBoundary from '@components/canvas/CanvasErrorBoundary'
 import { ControlIcon } from '@components/ui/ControlIcons'
 import ThemeToggle from '@components/ThemeToggle'
 import { auth } from '@appFirebase/firebase'
@@ -35,7 +36,6 @@ import './Editor.css'
 
 const GUEST_MODE_STORAGE_KEY = 'roometry_guest_mode'
 const GUEST_PROJECTS_STORAGE_KEY = 'roometry_guest_rooms'
-const GUIDED_MODE_STORAGE_KEY = 'roometry-guided-mode'
 const WALL_KEYS = ['north', 'south', 'east', 'west']
 
 const cloneSerializable = (value) => JSON.parse(JSON.stringify(value))
@@ -517,10 +517,6 @@ function Editor() {
     return base
   }, [cameraMode, cameraPresets, room.depth, room.height, room.width, uiMode])
 
-  const [showControls, setShowControls] = useState(true)
-  const [isFirstPersonLocked, setIsFirstPersonLocked] = useState(false)
-  const [isTopbarOpen, setIsTopbarOpen] = useState(false)
-  const styleVariant = 'minimal'
   const [authUser, setAuthUser] = useState(() => auth.currentUser)
   const [activeProjectId, setActiveProjectId] = useState(queryProjectId)
   const [isProjectLoading, setIsProjectLoading] = useState(false)
@@ -530,10 +526,6 @@ function Editor() {
   const [guestModePreference] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(GUEST_MODE_STORAGE_KEY) === 'true'
-  })
-  const [showGuidedMode, setShowGuidedMode] = useState(() => {
-    if (typeof window === 'undefined') return true
-    return window.localStorage.getItem(GUIDED_MODE_STORAGE_KEY) !== 'dismissed'
   })
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -545,35 +537,16 @@ function Editor() {
   const statusClearTimeoutRef = useRef(null)
 
   useEffect(() => {
-    const routeState = location.state
-    if (!routeState || (!routeState.snapshot && !routeState.floorPlan)) {
-      return
-    }
-
-    const snapshot = routeState.snapshot ?? {}
-    applySnapshotToStore({
-      ...snapshot,
-      floorPlan: routeState.floorPlan ?? snapshot.floorPlan,
-    })
-    setCameraMode('top')
-    setUiMode('draw')
-    setProjectName(deriveProjectName({
-      ...snapshot,
-      floorPlan: routeState.floorPlan ?? snapshot.floorPlan ?? { rooms: [] },
-    }))
-  }, [location.key, location.state, setCameraMode, setUiMode])
-
-  useEffect(() => {
-    if (!queryProjectId && !location.state?.snapshot && !location.state?.floorPlan) {
+    if (!queryProjectId) {
       resetScene()
       setCameraMode('top')
       setUiMode('draw')
       setProjectName('Untitled Project')
     }
-  }, [location.key, location.state, queryProjectId, resetScene, setCameraMode, setUiMode])
+  }, [queryProjectId, resetScene, setCameraMode, setUiMode])
 
   useEffect(() => {
-    if (!queryProjectId || location.state?.snapshot || location.state?.floorPlan) {
+    if (!queryProjectId) {
       return
     }
 
@@ -596,6 +569,8 @@ function Editor() {
             uid: authUser.uid,
             projectId: queryProjectId,
           })
+        } else {
+          return
         }
 
         if (cancelled) {
@@ -609,7 +584,7 @@ function Editor() {
 
         applySnapshotToStore({
           ...(project.snapshot ?? {}),
-          floorPlan: project.floorPlan ?? project.snapshot?.floorPlan,
+          floorPlan: project.snapshot?.floorPlan ?? project.floorPlan,
         })
         setCameraMode('top')
         setUiMode('draw')
@@ -632,7 +607,6 @@ function Editor() {
   }, [
     authUser,
     guestModePreference,
-    location.state,
     navigate,
     queryProjectId,
     setCameraMode,
@@ -725,25 +699,54 @@ function Editor() {
     try {
       setTransientStatus('saving', 'Saving project...', 0)
 
+      const saveName = projectName?.trim() || deriveProjectName(snapshot)
+
       if (isGuestMode) {
         const stored = JSON.parse(window.localStorage.getItem(GUEST_PROJECTS_STORAGE_KEY) ?? '[]')
-        const updated = stored.map(p =>
-          p.id === activeProjectId ? { ...p, snapshot, updatedAt: new Date().toISOString() } : p
-        )
-        window.localStorage.setItem(GUEST_PROJECTS_STORAGE_KEY, JSON.stringify(updated))
+        const projects = Array.isArray(stored) ? stored : []
+        const now = new Date().toISOString()
+        const projectId = activeProjectId ?? `room_${Date.now()}`
+        const existing = projects.find((project) => project.id === projectId)
+        const nextProject = {
+          ...(existing ?? { createdAt: now }),
+          id: projectId,
+          name: saveName,
+          snapshot,
+          floorPlan: snapshot.floorPlan,
+          roomCount: snapshot.floorPlan?.rooms?.length ?? 0,
+          updatedAt: now,
+        }
+        const nextProjects = existing
+          ? projects.map((project) => (project.id === projectId ? nextProject : project))
+          : [nextProject, ...projects]
+
+        window.localStorage.setItem(GUEST_PROJECTS_STORAGE_KEY, JSON.stringify(nextProjects))
+        if (!activeProjectId) {
+          setActiveProjectId(projectId)
+        }
       } else if (authUser) {
-        await saveProjectSnapshot({
+        const savedProjectId = await saveProjectSnapshot({
           uid: authUser.uid,
           projectId: activeProjectId,
-          name: projectName,
+          name: saveName,
           snapshot,
         })
+
+        if (!activeProjectId && savedProjectId) {
+          setActiveProjectId(savedProjectId)
+          navigate(`/app/${encodeURIComponent(savedProjectId)}`, {
+            replace: true,
+            state: { snapshot, floorPlan: snapshot.floorPlan },
+          })
+        }
+      } else {
+        throw new Error('Sign in or continue as a guest before saving.')
       }
 
       setTransientStatus('success', 'Project saved successfully!', 2000)
     } catch (error) {
       console.error('Error saving project:', error)
-      setTransientStatus('error', 'Failed to save project', 3000)
+      setTransientStatus('error', error.message || 'Failed to save project', 3000)
     }
   }
 
@@ -773,7 +776,7 @@ function Editor() {
           onToggle={handleToggleSidebar}
           title="Scene Controls"
         >
-          <SceneControls onHide={() => setShowControls(false)} />
+          <SceneControls />
         </SidePanel>
 
         {/* Canvas Area */}
@@ -784,15 +787,19 @@ function Editor() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <CanvasContainer is3DMode={is3DMode} isLoading={isProjectLoading}>
-            {is3DMode ? (
-              <Canvas3D
-                cameraMode={cameraMode}
-                preset={activePreset}
-                onFirstPersonLockChange={setIsFirstPersonLocked}
-              />
-            ) : (
-              <Canvas2D onHide={() => setShowControls(false)} />
-            )}
+            <CanvasErrorBoundary
+              key={`${activeProjectId ?? 'new'}-${is3DMode ? '3d' : '2d'}`}
+              title={is3DMode ? 'The 3D view could not be rendered.' : 'The 2D planner could not be rendered.'}
+            >
+              {is3DMode ? (
+                <Canvas3D
+                  cameraMode={cameraMode}
+                  preset={activePreset}
+                />
+              ) : (
+                <Canvas2D />
+              )}
+            </CanvasErrorBoundary>
           </CanvasContainer>
         </motion.div>
 

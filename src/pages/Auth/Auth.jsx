@@ -70,6 +70,8 @@ function Mark({ dark }) {
 }
 
 const AuthShell = ({ title, subtitle, children, isRegister }) => {
+  const location = useLocation()
+
   return (
     <motion.div
       className="auth-page"
@@ -119,14 +121,14 @@ const AuthShell = ({ title, subtitle, children, isRegister }) => {
             {isRegister ? (
               <>
                 Already have a studio?{' '}
-                <Link to="/login">
+                <Link to="/login" state={location.state}>
                   Sign in
                 </Link>
               </>
             ) : (
               <>
                 New here?{' '}
-                <Link to="/register">
+                <Link to="/register" state={location.state}>
                   Create a studio
                 </Link>
               </>
@@ -163,6 +165,14 @@ export const Login = () => {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleGuestMode = () => {
+    window.localStorage.setItem('roometry_guest_mode', 'true')
+    const destination = location.state?.from && location.state.from !== '/login'
+      ? location.state.from
+      : '/dashboard'
+    navigate(destination, { replace: true })
   }
 
   return (
@@ -216,6 +226,19 @@ export const Login = () => {
           {submitting ? 'Signing in…' : 'Sign in'}
           <ArrowRight size={16} />
         </button>
+
+        <div className="relative py-1 text-center text-[10px] uppercase tracking-[0.2em] text-[#6e675f]">
+          <span className="relative z-10 bg-[#f3efe7] px-2">or</span>
+          <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-[#ddd6cb]" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGuestMode}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md border border-[#ddd6cb] bg-[#fbf9f5] px-4 text-sm font-medium text-[#6e675f] transition-colors hover:border-[#1e4636] hover:text-[#161410]"
+        >
+          Continue as guest
+        </button>
       </form>
     </AuthShell>
   )
@@ -223,6 +246,7 @@ export const Login = () => {
 
 export const Register = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -236,7 +260,10 @@ export const Register = () => {
 
     try {
       await createUserWithEmailAndPassword(auth, email, password)
-      navigate('/dashboard', { replace: true })
+      const destination = location.state?.from && location.state.from !== '/login'
+        ? location.state.from
+        : '/dashboard'
+      navigate(destination, { replace: true })
     } catch (registerError) {
       setError(registerError.message)
     } finally {
@@ -246,7 +273,10 @@ export const Register = () => {
 
   const handleGuestMode = () => {
     window.localStorage.setItem('roometry_guest_mode', 'true')
-    navigate('/dashboard', { replace: true })
+    const destination = location.state?.from && location.state.from !== '/login'
+      ? location.state.from
+      : '/dashboard'
+    navigate(destination, { replace: true })
   }
 
   return (

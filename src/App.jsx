@@ -1,9 +1,11 @@
-import React from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { onAuthStateChanged } from 'firebase/auth'
 
 import { Dashboard, Editor, Landing, Login, Register } from '@pages'
 import ThemeProvider from '@context/ThemeProvider'
+import { auth } from '@appFirebase/firebase'
 
 const PageTransition = ({ children }) => {
   return (
@@ -19,6 +21,43 @@ const PageTransition = ({ children }) => {
   )
 }
 
+const EditorRoute = () => {
+  const location = useLocation()
+  const [access, setAccess] = useState(() => {
+    if (auth.currentUser) return 'authenticated'
+    const isGuest = window.localStorage.getItem('roometry_guest_mode') === 'true'
+    return isGuest ? 'guest' : 'pending'
+  })
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAccess('authenticated')
+        return
+      }
+
+      const isGuest = window.localStorage.getItem('roometry_guest_mode') === 'true'
+      setAccess(isGuest ? 'guest' : 'unauthenticated')
+    })
+  }, [])
+
+  if (access === 'pending') {
+    return null
+  }
+
+  if (access === 'unauthenticated') {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}` }}
+      />
+    )
+  }
+
+  return <PageTransition><Editor /></PageTransition>
+}
+
 const AnimatedRoutes = () => {
   const location = useLocation()
 
@@ -30,8 +69,8 @@ const AnimatedRoutes = () => {
         <Route path="/register" element={<PageTransition><Register /></PageTransition>} />
         <Route path="/dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
         <Route path="/projects" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/app" element={<PageTransition><Editor /></PageTransition>} />
-        <Route path="/app/:projectId" element={<PageTransition><Editor /></PageTransition>} />
+        <Route path="/app" element={<EditorRoute />} />
+        <Route path="/app/:projectId" element={<EditorRoute />} />
         <Route path="/projects/:projectId" element={<ProjectRouteAlias />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

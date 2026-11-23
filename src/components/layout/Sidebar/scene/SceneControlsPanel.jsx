@@ -1,6 +1,51 @@
 // Scene tab controls for the sidebar.
+import { useState } from 'react'
 import ControlSection from '../ControlSection'
 import { ControlIcon } from '@components/ui/ControlIcons'
+import { isSupportedTextureUrl } from '@utils/textureUrl'
+
+const TextureUrlInput = ({ value, onCommit, placeholder, className }) => {
+  const [draft, setDraft] = useState(value ?? '')
+  const [error, setError] = useState('')
+
+  const commit = () => {
+    const nextValue = draft.trim()
+    if (nextValue && !isSupportedTextureUrl(nextValue)) {
+      setError('Use a full http(s) URL, a data URL, or a /path.')
+      return
+    }
+
+    setError('')
+    onCommit(nextValue || undefined)
+  }
+
+  return (
+    <div className={className}>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          if (error) setError('')
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            event.currentTarget.blur()
+          }
+          if (event.key === 'Escape') {
+            setDraft(value ?? '')
+            setError('')
+            event.currentTarget.blur()
+          }
+        }}
+      />
+      {error && <span className="subtle-note" role="alert">{error}</span>}
+    </div>
+  )
+}
 
 export default function SceneControlsPanel({
   cameraMode,
@@ -170,11 +215,11 @@ export default function SceneControlsPanel({
 
         <label>
           Floor Texture URL
-          <input
-            type="text"
+          <TextureUrlInput
+            key={floor.textureUrl ?? 'empty'}
             placeholder="https://... or /textures/floor.jpg"
-            value={floor.textureUrl ?? ''}
-            onChange={(e) => setFloorMaterial({ textureUrl: e.target.value.trim() || undefined })}
+            value={floor.textureUrl}
+            onCommit={(textureUrl) => setFloorMaterial({ textureUrl })}
           />
         </label>
 
@@ -229,14 +274,12 @@ export default function SceneControlsPanel({
                 />
                 Show
               </label>
-              <input
+              <TextureUrlInput
+                key={walls[wallKey].textureUrl ?? 'empty'}
                 className="wall-texture"
-                type="text"
                 placeholder="Texture URL"
-                value={walls[wallKey].textureUrl ?? ''}
-                onChange={(e) =>
-                  setWall(wallKey, { textureUrl: e.target.value.trim() || undefined })
-                }
+                value={walls[wallKey].textureUrl}
+                onCommit={(textureUrl) => setWall(wallKey, { textureUrl })}
               />
               <label>
                 Roughness

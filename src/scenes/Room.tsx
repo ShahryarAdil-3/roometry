@@ -1,9 +1,10 @@
-import { useMemo, Suspense } from 'react'
+import { useEffect, useMemo, Suspense } from 'react'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { useSceneStore } from '../store/useSceneStore'
 import type { RoomDoor, WallKey } from '../store/useSceneStore'
 import FurnitureModel from '../components/canvas/3d/FurnitureModels'
+import { isSupportedTextureUrl } from '../utils/textureUrl'
 
 const FALLBACK_TEXTURE =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII='
@@ -48,13 +49,14 @@ const prepareTexture = (texture: THREE.Texture | null, repeat: [number, number])
         return null
     }
 
-    texture.wrapS = THREE.RepeatWrapping
-    texture.wrapT = THREE.RepeatWrapping
-    texture.repeat.set(repeat[0], repeat[1])
-    texture.colorSpace = THREE.SRGBColorSpace
-    texture.needsUpdate = true
+    const prepared = texture.clone()
+    prepared.wrapS = THREE.RepeatWrapping
+    prepared.wrapT = THREE.RepeatWrapping
+    prepared.repeat.set(repeat[0], repeat[1])
+    prepared.colorSpace = THREE.SRGBColorSpace
+    prepared.needsUpdate = true
 
-    return texture
+    return prepared
 }
 
 function Surface({
@@ -67,12 +69,18 @@ function Surface({
     onPointerMove,
     onPointerDown,
 }: SurfaceProps) {
-    const loadedTexture = useTexture(textureUrl ?? FALLBACK_TEXTURE)
+    const resolvedTextureUrl =
+        typeof textureUrl === 'string' && isSupportedTextureUrl(textureUrl) ? textureUrl : null
+    const loadedTexture = useTexture(resolvedTextureUrl ?? FALLBACK_TEXTURE)
 
     const map = useMemo(
-        () => prepareTexture(textureUrl ? loadedTexture : null, repeat),
-        [loadedTexture, repeat[0], repeat[1], textureUrl],
+        () => prepareTexture(resolvedTextureUrl ? loadedTexture : null, repeat),
+        [loadedTexture, repeat[0], repeat[1], resolvedTextureUrl],
     )
+
+    useEffect(() => () => {
+        map?.dispose()
+    }, [map])
 
     return (
         <mesh

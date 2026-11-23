@@ -1,8 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { AnimatePresence, motion, useAnimation, useMotionValue } from 'framer-motion'
+import React, { useCallback, useEffect, useState } from 'react'
+import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
-import { collection, deleteDoc, doc, getDocs, orderBy, query, updateDoc, where } from 'firebase/firestore'
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore'
 import {
   Clock,
   Cuboid,
@@ -22,16 +33,7 @@ import {
 } from 'lucide-react'
 import { auth, db } from '@appFirebase/firebase'
 import ThemeToggle from '@components/ThemeToggle'
-import { saveProjectSnapshot } from '@appFirebase/projects'
 import './Dashboard.css'
-
-const formatCreatedAt = (value) => {
-  if (!value) return 'Just now'
-  if (typeof value.toDate === 'function') return value.toDate().toLocaleDateString()
-  const parsed = new Date(value)
-  if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString()
-  return 'Just now'
-}
 
 const formatDateRelative = (value) => {
   if (!value) return 'Just now'
@@ -73,8 +75,6 @@ const ProjectCard = ({
     setIsHovered(false)
     cardControls.start({ scale: 1, y: 0 })
   }
-
-  const previewImage = room.snapshot?.thumbnail || `/api/placeholder/${room.id}`
 
   return (
     <motion.div
@@ -600,11 +600,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [isGuestMode, setIsGuestMode] = useState(false)
   const [profileLabel, setProfileLabel] = useState('')
-  const [editingRoom, setEditingRoom] = useState(null)
-  const [editDraft, setEditDraft] = useState({ name: '' })
-  const [guestProjects, setGuestProjects] = useState([])
-  const [isMigrating, setIsMigrating] = useState(false)
-  const [migrationMessage, setMigrationMessage] = useState('')
+  const [dashboardError, setDashboardError] = useState('')
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -642,8 +638,6 @@ function Dashboard() {
         setProfileLabel(user.email ?? 'Authenticated user')
 
         await loadCloudProjects(user)
-        const localGuests = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
-        setGuestProjects(Array.isArray(localGuests) ? localGuests : [])
         setLoading(false)
 
         return
@@ -684,31 +678,38 @@ function Dashboard() {
   }
 
   const handleCreateProject = async (config) => {
+    setDashboardError('')
     const projectRoomId = `room_${Date.now()}`
+    const roomWidth = Math.min(100, Math.max(1, Number(config.width) || 18))
+    const roomDepth = Math.min(100, Math.max(1, Number(config.depth) || 14))
+    const pixelsPerMeter = Math.min(140, Math.max(16, Number(config.pixelsPerMeter) || 36))
+    const margin = 2
+    const projectName = (config.name || '').trim() || `Project ${Date.now()}`
     const newRoom = {
       id: projectRoomId,
-      name: config.name || `Project ${Date.now()}`,
+      name: projectName,
       createdAt: new Date(),
       updatedAt: new Date(),
+      roomCount: 1,
       snapshot: {
-        room: { width: config.width, depth: config.height || config.depth, height: 2.7 },
+        room: { width: roomWidth, depth: roomDepth, height: 2.7 },
         walls: { north: {}, south: {}, east: {}, west: {} },
         floor: { color: '#f5f5f5' },
         ceiling: { color: '#ffffff' },
         furniture: [],
         cameraMode: 'orbit',
-        dimensions: { width: config.width, depth: config.depth },
+        dimensions: { width: roomWidth, depth: roomDepth },
         furnitureCount: 0,
         colors: { primary: '#c07a45' }
       },
       floorPlan: {
         rooms: [{
           id: projectRoomId,
-          name: config.name || `Project ${Date.now()}`,
-          x: 0,
-          z: 0,
-          width: config.width,
-          depth: config.depth,
+          name: projectName,
+          x: margin,
+          z: margin,
+          width: roomWidth,
+          depth: roomDepth,
           height: 2.7,
           wallThickness: 0.15,
           doors: []
@@ -716,40 +717,47 @@ function Dashboard() {
         selectedRoomId: projectRoomId,
         uiMode: 'draw',
         livePreview: false,
-        canvas: { width: config.width, depth: config.depth, pixelsPerMeter: config.pixelsPerMeter },
+        canvas: {
+          width: roomWidth + margin * 2,
+          depth: roomDepth + margin * 2,
+          pixelsPerMeter,
+        },
         snapEnabled: true,
         snapStep: 0.5,
         constraintMessage: null
       }
     }
 
-    if (isGuestMode) {
-      const stored = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
-      const updated = [newRoom, ...stored]
-      window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
-      setRooms(updated)
-      navigate(`/app/${encodeURIComponent(newRoom.id)}`, {
-        replace: true,
-        state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan },
-      })
-      return
-    }
-
     try {
-      const docRef = doc(collection(db, 'rooms'))
-      await updateDoc(docRef, {
-        ...newRoom,
-        uid: auth.currentUser.uid,
-        id: docRef.id
-      })
-      newRoom.id = docRef.id
-      setRooms([newRoom, ...rooms])
+      if (isGuestMode) {
+        const stored = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+        const updated = [newRoom, ...(Array.isArray(stored) ? stored : [])]
+        window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
+        setRooms(updated)
+      } else {
+        if (!auth.currentUser) {
+          throw new Error('Sign in or continue as a guest before creating a project.')
+        }
+
+        const docRef = doc(collection(db, 'rooms'))
+        await setDoc(docRef, {
+          ...newRoom,
+          uid: auth.currentUser.uid,
+          id: docRef.id,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+        newRoom.id = docRef.id
+        setRooms([newRoom, ...rooms])
+      }
+
       navigate(`/app/${encodeURIComponent(newRoom.id)}`, {
         replace: true,
         state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan },
       })
     } catch (error) {
       console.error('Error creating project:', error)
+      setDashboardError(error.message || 'Could not create the project. Please try again.')
     }
   }
 
@@ -827,6 +835,15 @@ function Dashboard() {
         onCreate={() => setIsCreateModalOpen(true)}
         isGuest={isGuestMode}
       />
+
+      {dashboardError && (
+        <div className="dashboard-error" role="alert">
+          <span>{dashboardError}</span>
+          <button type="button" onClick={() => setDashboardError('')}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <QuickActions onAction={handleQuickAction} />

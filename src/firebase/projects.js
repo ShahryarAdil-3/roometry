@@ -16,7 +16,8 @@ export const saveProjectSnapshot = async ({ uid, projectId, name, snapshot }) =>
   }
 
   const safeName = (name || 'Untitled Project').trim() || 'Untitled Project'
-  const roomCount = snapshot?.floorPlan?.rooms?.length ?? 0
+  const floorPlan = snapshot?.floorPlan ?? null
+  const roomCount = floorPlan?.rooms?.length ?? 0
 
   if (projectId) {
     const projectRef = doc(db, PROJECTS_COLLECTION, projectId)
@@ -30,6 +31,7 @@ export const saveProjectSnapshot = async ({ uid, projectId, name, snapshot }) =>
       uid,
       name: safeName,
       snapshot,
+      floorPlan,
       roomCount,
       updatedAt: serverTimestamp(),
     }
@@ -50,6 +52,7 @@ export const saveProjectSnapshot = async ({ uid, projectId, name, snapshot }) =>
     uid,
     name: safeName,
     snapshot,
+    floorPlan,
     roomCount,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),

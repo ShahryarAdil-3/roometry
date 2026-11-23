@@ -2,7 +2,7 @@
 import { Canvas } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Room from '@scenes/Room'
 import { useSceneStore } from '@store/useSceneStore'
@@ -24,6 +24,38 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange }
   const [ghostBlocked, setGhostBlocked] = useState(false)
   const [movingFurnitureId, setMovingFurnitureId] = useState(null)
   const [guideLines, setGuideLines] = useState({ x: null, z: null })
+  const [contextLost, setContextLost] = useState(false)
+  const [canvasKey, setCanvasKey] = useState(0)
+  const contextCleanupRef = useRef(null)
+
+  useEffect(() => () => {
+    contextCleanupRef.current?.()
+  }, [])
+
+  const handleCanvasCreated = useCallback(({ gl }) => {
+    const canvas = gl.domElement
+    const handleContextLost = (event) => {
+      event.preventDefault()
+      setContextLost(true)
+    }
+    const handleContextRestored = () => {
+      setContextLost(false)
+      setCanvasKey((key) => key + 1)
+    }
+
+    contextCleanupRef.current?.()
+    canvas.addEventListener('webglcontextlost', handleContextLost)
+    canvas.addEventListener('webglcontextrestored', handleContextRestored)
+    contextCleanupRef.current = () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost)
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored)
+    }
+  }, [])
+
+  const retry3D = () => {
+    setContextLost(false)
+    setCanvasKey((key) => key + 1)
+  }
 
   const selectedRoom = floorPlan.rooms.find((roomItem) => roomItem.id === floorPlan.selectedRoomId)
   const selectedDoors = selectedRoom?.doors ?? []
@@ -312,7 +344,14 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange }
   )
 
   return (
-    <Canvas shadows camera={{ position: preset.position, fov: preset.fov }} dpr={[1, 2]}>
+    <div className="editor-canvas-stage">
+      <Canvas
+        key={canvasKey}
+        shadows
+        camera={{ position: preset.position, fov: preset.fov }}
+        dpr={[1, 2]}
+        onCreated={handleCanvasCreated}
+      >
       <CameraSync preset={preset} />
       <color attach="background" args={['#a9bfce']} />
       <fog attach="fog" args={['#a9bfce', 8, 32]} />
@@ -434,6 +473,17 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange }
         </Html>
       )}
 
-    </Canvas>
+      </Canvas>
+
+      {contextLost && (
+        <div className="editor-canvas-fallback editor-canvas-context-overlay" role="alert">
+          <h3>3D renderer lost its graphics context.</h3>
+          <p>Your work is safe. Retry the 3D view to rebuild the renderer.</p>
+          <button type="button" className="editor-action-btn" onClick={retry3D}>
+            Retry 3D
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

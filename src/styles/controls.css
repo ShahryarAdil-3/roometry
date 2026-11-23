@@ -208,6 +208,14 @@
   grid-column: 1 / -1;
 }
 
+.wall-texture input {
+  width: 100%;
+}
+
+.wall-texture .subtle-note {
+  margin-bottom: 0;
+}
+
 .wall-row span {
   text-transform: capitalize;
   font-size: 13px;
