@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense, lazy } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
@@ -24,8 +24,6 @@ import {
 } from 'lucide-react'
 import { useSceneStore } from '@store/useSceneStore'
 import { SceneControls } from '@components/layout/Sidebar'
-import Canvas3D from '@components/canvas/Canvas3D'
-import Canvas2D from '@components/canvas/Canvas2D'
 import CanvasErrorBoundary from '@components/canvas/CanvasErrorBoundary'
 import { ControlIcon } from '@components/ui/ControlIcons'
 import ThemeToggle from '@components/ThemeToggle'
@@ -33,6 +31,11 @@ import { auth } from '@appFirebase/firebase'
 import { fetchProjectSnapshot, saveProjectSnapshot } from '@appFirebase/projects'
 import '../../styles/editor-ui.css'
 import './Editor.css'
+
+// The 2D planner and the three.js scene are by far the heaviest parts of the
+// app; load them only when the editor actually mounts a canvas.
+const Canvas2D = lazy(() => import('@components/canvas/Canvas2D'))
+const Canvas3D = lazy(() => import('@components/canvas/Canvas3D'))
 
 const GUEST_MODE_STORAGE_KEY = 'roometry_guest_mode'
 const GUEST_PROJECTS_STORAGE_KEY = 'roometry_guest_rooms'
@@ -752,6 +755,14 @@ function Editor() {
 
   return (
     <div className="editor-shell">
+      <div className="editor-narrow-notice" role="alert">
+        <h2>Roometry needs a wider window.</h2>
+        <p>
+          This studio is built for desktop screens. Widen the window to at least
+          1024 px to use the editor.
+        </p>
+      </div>
+
       {/* Header */}
       <EditorHeader
         projectName={projectName}
@@ -787,19 +798,27 @@ function Editor() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <CanvasContainer is3DMode={is3DMode} isLoading={isProjectLoading}>
-            <CanvasErrorBoundary
-              key={`${activeProjectId ?? 'new'}-${is3DMode ? '3d' : '2d'}`}
-              title={is3DMode ? 'The 3D view could not be rendered.' : 'The 2D planner could not be rendered.'}
-            >
-              {is3DMode ? (
-                <Canvas3D
-                  cameraMode={cameraMode}
-                  preset={activePreset}
-                />
-              ) : (
-                <Canvas2D />
+            <Suspense
+              fallback={(
+                <div className="editor-canvas-loading">
+                  <p>Loading {is3DMode ? '3D' : '2D'} environment...</p>
+                </div>
               )}
-            </CanvasErrorBoundary>
+            >
+              <CanvasErrorBoundary
+                key={`${activeProjectId ?? 'new'}-${is3DMode ? '3d' : '2d'}`}
+                title={is3DMode ? 'The 3D view could not be rendered.' : 'The 2D planner could not be rendered.'}
+              >
+                {is3DMode ? (
+                  <Canvas3D
+                    cameraMode={cameraMode}
+                    preset={activePreset}
+                  />
+                ) : (
+                  <Canvas2D />
+                )}
+              </CanvasErrorBoundary>
+            </Suspense>
           </CanvasContainer>
         </motion.div>
 

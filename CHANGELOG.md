@@ -1,5 +1,37 @@
 # Changelog
 
+## Phase 2 — Security rules, timestamp normalisation, desktop guard (2026-11-23)
+
+### Added: versioned Firestore security rules
+- **Root cause:** the repo contained no `firebase.json` or rules file, so there was no reviewable guarantee that users can only read and write their own projects.
+- **Fix:** added `firestore.rules` and `firebase.json`. `rooms` documents are readable, updatable and deletable only by the signed-in user whose uid matches the document's `uid`; creation requires the new document to carry the caller's uid; everything else is denied by default.
+- **Not deployed:** deploying rules changes shared infrastructure. Run `firebase deploy --only firestore:rules` only after confirming your current production rules with `firebase firestore:rules` (or the console). Legacy `rooms` documents without a `uid` field will stop being accessible to clients once these rules are live.
+- Files: `firestore.rules`, `firebase.json`
+
+### Added: documented environment configuration
+- Added `.env.example` listing the `VITE_FIREBASE_*` variables the app reads. The hardcoded fallbacks in `src/firebase/firebase.js` were intentionally left in place so local development keeps working without a `.env`; removing them should happen once a real `.env.local` exists.
+- Files: `.env.example`
+
+### Fixed: dashboard ordering with mixed timestamp types
+- **Root cause:** projects were ordered by `createdAt` in Firestore, but records mix Firestore Timestamps (newer) with ISO strings (guest/legacy), and Firestore sorts by value type before value, so legacy projects could appear first.
+- **Fix:** fetch the user's rooms and sort in the client after normalising `createdAt` (Timestamp, Date, number or ISO string) with `updatedAt` as fallback. This also removes the composite index requirement for `where('uid') + orderBy('createdAt')`.
+- Files: `src/pages/Dashboard/Dashboard.jsx`
+
+### Added: desktop width guard for the editor
+- **Root cause:** below roughly 960 px the two open side panels consumed the whole row, leaving the canvas 0 px wide, and header content overflowed horizontally.
+- **Fix:** below 1024 px the editor renders an explicit "Roometry needs a wider window" notice instead of a broken, zero-width canvas. Above that width behaviour is unchanged.
+- Files: `src/pages/Editor/Editor.jsx`, `src/pages/Editor/Editor.css`
+
+### Changed: floor-plan room is authoritative for room dimensions
+- **Root cause:** `room` was persisted as a second copy of the selected floor-plan room's dimensions, and hydration trusted that stale copy until the editor explicitly re-synced. The unused `setRoomDimensions` action could also change `room` without touching the floor plan, quietly breaking the mirror.
+- **Fix:** the persist layer now re-derives `room` from the selected `floorPlan.rooms` entry during hydration (`merge`), so a stale persisted copy can never leak into the scene; removed the dead `setRoomDimensions` action. A full collapse (deleting the mirrored state entirely) remains for a later phase because it touches every 2D/3D consumer.
+- Files: `src/store/useSceneStore.ts`
+
+### Changed: 2D/3D canvases are code-split
+- **Root cause:** three.js, React Three Fiber, drei and postprocessing were bundled into the entry chunk and loaded on every route, including the dashboard and auth pages.
+- **Fix:** `Canvas2D` and `Canvas3D` are now `React.lazy` imports with a loading panel fallback. Initial JS dropped from 1,918 kB (587 kB gzip) to 799 kB (244 kB gzip); the 3D scene ships as a 1,081 kB (331 kB gzip) chunk fetched only when the editor mounts it.
+- Files: `src/pages/Editor/Editor.jsx`
+
 ## Phase 1 — Save/load integrity and crash containment (2026-11-23)
 
 ### Fixed: projects loading stale or losing saved changes

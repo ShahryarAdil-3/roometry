@@ -104,7 +104,6 @@ interface SceneData {
 }
 
 interface SceneActions {
-  setRoomDimensions: (dimensions: Partial<SceneData['room']>) => void
   setWall: (wall: WallKey, patch: Partial<WallState>) => void
   setFloorMaterial: (patch: Partial<MaterialState>) => void
   setCeilingMaterial: (patch: Partial<MaterialState>) => void
@@ -349,20 +348,6 @@ const createInitialState = (
   get: () => SceneState,
 ): SceneState => ({
   ...createInitialSceneData(),
-
-  setRoomDimensions: (dimensions) =>
-    set((state) => {
-      const nextRoom = { ...state.room, ...dimensions }
-      if (
-        nextRoom.width === state.room.width &&
-        nextRoom.depth === state.room.depth &&
-        nextRoom.height === state.room.height
-      ) {
-        return state
-      }
-
-      return { room: nextRoom }
-    }),
 
   setWall: (wall, patch) =>
     set((state) => {
@@ -949,6 +934,14 @@ export const useSceneStore = create<SceneState>()(
       firstPerson: state.firstPerson,
       floorPlan: state.floorPlan,
     }),
+    merge: (persistedState, currentState) => {
+      const merged = {
+        ...currentState,
+        ...(persistedState as Partial<SceneState>),
+      } as SceneState
+      const synced = syncRoomToScene(merged)
+      return (synced === merged ? merged : { ...merged, ...synced }) as SceneState
+    },
     migrate: (persistedState) => {
       const state = persistedState as Partial<SceneData> | undefined
       const initialFloorPlan = createInitialSceneData().floorPlan

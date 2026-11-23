@@ -7,7 +7,6 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -34,6 +33,20 @@ import {
 import { auth, db } from '@appFirebase/firebase'
 import ThemeToggle from '@components/ThemeToggle'
 import './Dashboard.css'
+
+const getCreatedTime = (room) => {
+  const value = room?.createdAt ?? room?.updatedAt
+  if (!value) return 0
+  if (typeof value.toDate === 'function') return value.toDate().getTime()
+  if (value instanceof Date) return value.getTime()
+  if (typeof value === 'number') return value
+  const parsed = new Date(value).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+const sortRoomsNewestFirst = (rooms) => (
+  Array.isArray(rooms) ? [...rooms].sort((a, b) => getCreatedTime(b) - getCreatedTime(a)) : []
+)
 
 const formatDateRelative = (value) => {
   if (!value) return 'Just now'
@@ -614,14 +627,13 @@ function Dashboard() {
       const roomsQuery = query(
         collection(db, 'rooms'),
         where('uid', '==', user.uid),
-        orderBy('createdAt', 'desc'),
       )
       const snapshot = await getDocs(roomsQuery)
       const mappedRooms = snapshot.docs.map((entry) => ({
         id: entry.id,
         ...entry.data(),
       }))
-      setRooms(mappedRooms)
+      setRooms(sortRoomsNewestFirst(mappedRooms))
     } catch (error) {
       console.error('Error fetching rooms:', error)
     }
@@ -649,7 +661,7 @@ function Dashboard() {
 
         try {
           const storedRooms = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
-          setRooms(Array.isArray(storedRooms) ? storedRooms : [])
+          setRooms(sortRoomsNewestFirst(storedRooms))
         } catch {
           setRooms([])
         } finally {
