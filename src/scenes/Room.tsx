@@ -1,7 +1,7 @@
 import { useEffect, useMemo, Suspense } from 'react'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
-import { useSceneStore } from '../store/useSceneStore'
+import { DEFAULT_ROOM_DIMENSIONS, useActiveRoom, useSceneStore } from '../store/useSceneStore'
 import type { RoomDoor, WallKey } from '../store/useSceneStore'
 import FurnitureModel from '../components/canvas/3d/FurnitureModels'
 import { isSupportedTextureUrl } from '../utils/textureUrl'
@@ -197,7 +197,8 @@ export default function Room({
     onFloorPointerMove,
     onFloorPointerDown,
 }: RoomProps) {
-    const room = useSceneStore((state) => state.room)
+    const activeRoom = useActiveRoom()
+    const room = activeRoom ?? DEFAULT_ROOM_DIMENSIONS
     const floor = useSceneStore((state) => state.floor)
     const ceiling = useSceneStore((state) => state.ceiling)
     const walls = useSceneStore((state) => state.walls)

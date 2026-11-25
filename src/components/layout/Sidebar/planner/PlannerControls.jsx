@@ -22,8 +22,6 @@ export default function PlannerControls({
   updateRoom,
   removeRoom,
   setSelectedRoomDimensions,
-  setLivePreview,
-  applySelectedRoomToScene,
   setCameraMode,
   setUiMode,
   commitNumeric,
@@ -251,23 +249,10 @@ export default function PlannerControls({
               />
             </label>
 
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={floorPlan.livePreview}
-                onChange={(e) => setLivePreview(e.target.checked)}
-              />
-              <span className="icon-label">
-                <ControlIcon name="preview" size={14} />
-                Live 3D preview while editing
-              </span>
-            </label>
-
             <div className="inline-row inline-row-2">
               <button
                 type="button"
                 onClick={() => {
-                  applySelectedRoomToScene()
                   setCameraMode('orbit')
                   setUiMode('visualize')
                 }}

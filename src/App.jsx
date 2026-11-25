@@ -1,11 +1,19 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { onAuthStateChanged } from 'firebase/auth'
 
-import { Dashboard, Editor, Landing, Login, Register } from '@pages'
+// Editor is loaded on demand: it pulls in the scene store, the DOM/SVG
+// planner and the three.js scene, none of which the public pages need.
+// Import pages directly instead of from the @pages barrel, because the
+// barrel would pull the editor (and its dependencies) into the entry chunk.
+import Landing from '@pages/Landing'
+import { Login, Register } from '@pages/Auth'
+import Dashboard from '@pages/Dashboard'
 import ThemeProvider from '@context/ThemeProvider'
 import { auth } from '@appFirebase/firebase'
+
+const Editor = lazy(() => import('@pages/Editor'))
 
 const PageTransition = ({ children }) => {
   return (
@@ -55,7 +63,19 @@ const EditorRoute = () => {
     )
   }
 
-  return <PageTransition><Editor /></PageTransition>
+  return (
+    <PageTransition>
+      <Suspense
+        fallback={(
+          <div className="flex min-h-screen items-center justify-center bg-[#faf7f4] text-sm text-[#8a7260]">
+            Loading studio...
+          </div>
+        )}
+      >
+        <Editor />
+      </Suspense>
+    </PageTransition>
+  )
 }
 
 const AnimatedRoutes = () => {

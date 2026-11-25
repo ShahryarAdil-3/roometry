@@ -78,11 +78,6 @@ export interface FirstPersonSettings {
 }
 
 interface SceneData {
-  room: {
-    width: number
-    depth: number
-    height: number
-  }
   walls: Record<WallKey, WallState>
   floor: MaterialState
   ceiling: MaterialState
@@ -95,7 +90,6 @@ interface SceneData {
     rooms: FloorPlanRoom[]
     selectedRoomId: string | null
     uiMode: UiMode
-    livePreview: boolean
     canvas: FloorPlanCanvas
     snapEnabled: boolean
     snapStep: number
@@ -114,7 +108,6 @@ interface SceneActions {
   setCameraMode: (mode: CameraMode) => void
   setFirstPersonSettings: (patch: Partial<FirstPersonSettings>) => void
   setUiMode: (mode: UiMode) => void
-  setLivePreview: (enabled: boolean) => void
   setCanvasSettings: (patch: Partial<FloorPlanCanvas>) => void
   setSnapSettings: (patch: { enabled?: boolean; step?: number }) => void
   clearConstraintMessage: () => void
@@ -126,7 +119,6 @@ interface SceneActions {
   setSelectedRoomDimensions: (patch: Partial<Pick<FloorPlanRoom, 'width' | 'depth' | 'height'>>) => void
   upsertDoor: (roomId: string, door: Omit<RoomDoor, 'id'> & { id?: string }) => void
   removeDoor: (roomId: string, doorId: string) => void
-  applySelectedRoomToScene: () => void
   resetScene: () => void
 }
 
@@ -149,6 +141,15 @@ const cameraPresets: Record<CameraMode, CameraPreset> = {
     fov: 65,
   },
 }
+
+// Dimensions used by the 3D scene when no floor-plan room is selected (for
+// example on a brand-new scene). The selected floor-plan room is otherwise the
+// only source of truth for width/depth/height.
+export const DEFAULT_ROOM_DIMENSIONS = {
+  width: 8,
+  depth: 8,
+  height: 3,
+} as const
 
 const MIN_ROOM_WIDTH = 1
 const MIN_ROOM_DEPTH = 1
@@ -269,35 +270,7 @@ const isFurnitureInsideRoom = (item: FurnitureItem, room: FloorPlanRoom) => {
   return insideX && insideY && insideZ
 }
 
-const syncRoomToScene = (state: SceneState): Partial<SceneState> | SceneState => {
-  const selectedRoom = state.floorPlan.rooms.find((room) => room.id === state.floorPlan.selectedRoomId)
-  if (!selectedRoom) {
-    return state
-  }
-
-  const nextDimensions = sanitizeRoomDimensions(selectedRoom)
-  if (
-    state.room.width === nextDimensions.width &&
-    state.room.depth === nextDimensions.depth &&
-    state.room.height === nextDimensions.height
-  ) {
-    return state
-  }
-
-  return {
-    room: {
-      ...state.room,
-      ...nextDimensions,
-    },
-  }
-}
-
 const createInitialSceneData = (): SceneData => ({
-  room: {
-    width: 8,
-    depth: 8,
-    height: 3,
-  },
   walls: {
     north: { color: '#ece7de', roughness: 0.95, metalness: 0, visible: true },
     south: { color: '#ece7de', roughness: 0.95, metalness: 0, visible: true },
@@ -331,7 +304,6 @@ const createInitialSceneData = (): SceneData => ({
     rooms: [],
     selectedRoomId: null,
     uiMode: 'draw',
-    livePreview: true,
     canvas: {
       width: 18,
       depth: 14,
@@ -475,32 +447,10 @@ const createInitialState = (
         return state
       }
 
-      const nextState: SceneState = {
-        ...state,
-        floorPlan: {
-          ...state.floorPlan,
-          uiMode: mode,
-        },
-      }
-
-      if (mode === 'visualize') {
-        const synced = syncRoomToScene(nextState)
-        return synced === nextState ? nextState : { ...nextState, ...synced }
-      }
-
-      return nextState
-    }),
-
-  setLivePreview: (enabled) =>
-    set((state) => {
-      if (state.floorPlan.livePreview === enabled) {
-        return state
-      }
-
       return {
         floorPlan: {
           ...state.floorPlan,
-          livePreview: enabled,
+          uiMode: mode,
         },
       }
     }),
@@ -625,8 +575,7 @@ const createInitialState = (
 
       createdId = roomId
 
-      const nextState: SceneState = {
-        ...state,
+      return {
         floorPlan: {
           ...state.floorPlan,
           rooms: [...state.floorPlan.rooms, nextRoom],
@@ -634,13 +583,6 @@ const createInitialState = (
           constraintMessage: null,
         },
       }
-
-      if (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize') {
-        const synced = syncRoomToScene(nextState)
-        return synced === nextState ? nextState : { ...nextState, ...synced }
-      }
-
-      return nextState
     })
 
     return createdId
@@ -684,24 +626,13 @@ const createInitialState = (
 
       moved = nextRoom.x !== currentRoom.x || nextRoom.z !== currentRoom.z
 
-      const nextState: SceneState = {
-        ...state,
+      return {
         floorPlan: {
           ...state.floorPlan,
           rooms: nextRooms,
           constraintMessage: null,
         },
       }
-
-      if (
-        roomId === state.floorPlan.selectedRoomId &&
-        (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize')
-      ) {
-        const synced = syncRoomToScene(nextState)
-        return synced === nextState ? nextState : { ...nextState, ...synced }
-      }
-
-      return nextState
     })
 
     return moved
@@ -758,24 +689,13 @@ const createInitialState = (
       const nextRooms = [...state.floorPlan.rooms]
       nextRooms[roomIndex] = nextRoom
 
-      const nextState: SceneState = {
-        ...state,
+      return {
         floorPlan: {
           ...state.floorPlan,
           rooms: nextRooms,
           constraintMessage: null,
         },
       }
-
-      if (
-        roomId === state.floorPlan.selectedRoomId &&
-        (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize')
-      ) {
-        const synced = syncRoomToScene(nextState)
-        return synced === nextState ? nextState : { ...nextState, ...synced }
-      }
-
-      return nextState
     }),
 
   removeRoom: (roomId) =>
@@ -790,8 +710,7 @@ const createInitialState = (
           ? (nextRooms[0]?.id ?? null)
           : state.floorPlan.selectedRoomId
 
-      const nextState: SceneState = {
-        ...state,
+      return {
         furniture: state.furniture.filter((item) => item.roomId !== roomId),
         floorPlan: {
           ...state.floorPlan,
@@ -800,13 +719,6 @@ const createInitialState = (
           constraintMessage: null,
         },
       }
-
-      if (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize') {
-        const synced = syncRoomToScene(nextState)
-        return synced === nextState ? nextState : { ...nextState, ...synced }
-      }
-
-      return nextState
     }),
 
   selectRoom: (roomId) =>
@@ -815,21 +727,13 @@ const createInitialState = (
         return state
       }
 
-      const nextState: SceneState = {
-        ...state,
+      return {
         floorPlan: {
           ...state.floorPlan,
           selectedRoomId: roomId,
           constraintMessage: null,
         },
       }
-
-      if (state.floorPlan.livePreview || state.floorPlan.uiMode === 'visualize') {
-        const synced = syncRoomToScene(nextState)
-        return synced === nextState ? nextState : { ...nextState, ...synced }
-      }
-
-      return nextState
     }),
 
   setSelectedRoomDimensions: (patch) => {
@@ -907,12 +811,6 @@ const createInitialState = (
       }
     }),
 
-  applySelectedRoomToScene: () =>
-    set((state) => {
-      const synced = syncRoomToScene(state)
-      return synced
-    }),
-
   resetScene: () =>
     set(() => ({
       ...createInitialSceneData(),
@@ -922,28 +820,54 @@ const createInitialState = (
 export const useSceneStore = create<SceneState>()(
   persist((set, get) => createInitialState(set, get), {
     name: 'roometry-scene-v3',
-    version: 6,
+    version: 7,
     storage: createJSONStorage(() => localStorage),
     partialize: (state) => ({
-      room: state.room,
       walls: state.walls,
       floor: state.floor,
       ceiling: state.ceiling,
       furniture: state.furniture,
       cameraMode: state.cameraMode,
       firstPerson: state.firstPerson,
-      floorPlan: state.floorPlan,
+      // Explicit pick: persist only fields the current schema defines, so
+      // legacy keys can never be written back by a save triggered during
+      // hydration.
+      floorPlan: {
+        rooms: state.floorPlan.rooms,
+        selectedRoomId: state.floorPlan.selectedRoomId,
+        uiMode: state.floorPlan.uiMode,
+        canvas: state.floorPlan.canvas,
+        snapEnabled: state.floorPlan.snapEnabled,
+        snapStep: state.floorPlan.snapStep,
+        constraintMessage: state.floorPlan.constraintMessage,
+      },
     }),
     merge: (persistedState, currentState) => {
-      const merged = {
+      // Never let legacy fields (the old mirrored `room`, the removed
+      // `livePreview` flag) leak back into the store from persisted data.
+      const persisted = { ...((persistedState ?? {}) as Record<string, unknown>) }
+      delete persisted.room
+      const persistedFloorPlan = { ...((persisted.floorPlan ?? {}) as Record<string, unknown>) }
+      delete persistedFloorPlan.livePreview
+      persisted.floorPlan = persistedFloorPlan
+
+      return {
         ...currentState,
-        ...(persistedState as Partial<SceneState>),
+        ...(persisted as Partial<SceneState>),
+        floorPlan: {
+          ...currentState.floorPlan,
+          ...(persistedFloorPlan as Partial<SceneState['floorPlan']>),
+        },
       } as SceneState
-      const synced = syncRoomToScene(merged)
-      return (synced === merged ? merged : { ...merged, ...synced }) as SceneState
     },
     migrate: (persistedState) => {
-      const state = persistedState as Partial<SceneData> | undefined
+      const raw = { ...((persistedState ?? {}) as Record<string, unknown>) }
+      delete raw.room
+      const rawFloorPlan = { ...((raw.floorPlan ?? {}) as Record<string, unknown>) }
+      delete rawFloorPlan.livePreview
+      raw.floorPlan = rawFloorPlan
+
+      const state = raw as Partial<SceneData>
       const initialFloorPlan = createInitialSceneData().floorPlan
 
       const migratedRooms = state?.floorPlan?.rooms?.map((room, index) => ({
@@ -995,3 +919,12 @@ export const useSceneStore = create<SceneState>()(
     },
   }),
 )
+
+// The selected floor-plan room is the only source of truth for the 3D scene's
+// dimensions. Consumers derive it here instead of keeping a mirrored copy in
+// state; the returned room is the stored object, so its reference is stable
+// until that room actually changes.
+export const useActiveRoom = () =>
+  useSceneStore((state) =>
+    state.floorPlan.rooms.find((room) => room.id === state.floorPlan.selectedRoomId) ?? null,
+  )

@@ -5,12 +5,11 @@ import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Room from '@scenes/Room'
-import { useSceneStore } from '@store/useSceneStore'
+import { DEFAULT_ROOM_DIMENSIONS, useSceneStore } from '@store/useSceneStore'
 import CameraSync from './3d/CameraSync'
 import FirstPersonController from './3d/FirstPersonController'
 
 export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange }) {
-  const room = useSceneStore((state) => state.room)
   const furniture = useSceneStore((state) => state.furniture)
   const addFurniture = useSceneStore((state) => state.addFurniture)
   const updateFurniture = useSceneStore((state) => state.updateFurniture)
@@ -58,6 +57,7 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange }
   }
 
   const selectedRoom = floorPlan.rooms.find((roomItem) => roomItem.id === floorPlan.selectedRoomId)
+  const room = selectedRoom ?? DEFAULT_ROOM_DIMENSIONS
   const selectedDoors = selectedRoom?.doors ?? []
   const placementTemplate =
     furniturePlacement && furniturePlacement.roomId === selectedRoom?.id ? furniturePlacement : null

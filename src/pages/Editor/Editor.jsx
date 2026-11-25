@@ -22,7 +22,7 @@ import {
   Plus,
   Trash2
 } from 'lucide-react'
-import { useSceneStore } from '@store/useSceneStore'
+import { DEFAULT_ROOM_DIMENSIONS, useActiveRoom, useSceneStore } from '@store/useSceneStore'
 import { SceneControls } from '@components/layout/Sidebar'
 import CanvasErrorBoundary from '@components/canvas/CanvasErrorBoundary'
 import { ControlIcon } from '@components/ui/ControlIcons'
@@ -45,7 +45,6 @@ const cloneSerializable = (value) => JSON.parse(JSON.stringify(value))
 
 const createSnapshotFromState = (state) =>
   cloneSerializable({
-    room: state.room,
     walls: state.walls,
     floor: state.floor,
     ceiling: state.ceiling,
@@ -69,7 +68,10 @@ const applySnapshotToStore = (snapshot) => {
   if (!snapshot || typeof snapshot !== 'object') return false
 
   const current = useSceneStore.getState()
-  const incomingFloorPlan = snapshot.floorPlan ?? {}
+  const incomingFloorPlan = { ...(snapshot.floorPlan ?? {}) }
+  // Drop fields the current schema no longer has so old saves cannot
+  // resurrect them in the live store (and from there in the next save).
+  delete incomingFloorPlan.livePreview
   const incomingRooms = Array.isArray(incomingFloorPlan.rooms)
     ? cloneSerializable(incomingFloorPlan.rooms)
     : current.floorPlan.rooms
@@ -88,10 +90,6 @@ const applySnapshotToStore = (snapshot) => {
 
   useSceneStore.setState(
     {
-      room: {
-        ...current.room,
-        ...(snapshot.room ?? {}),
-      },
       walls: nextWalls,
       floor: {
         ...current.floor,
@@ -477,14 +475,14 @@ function Editor() {
 
   const cameraMode = useSceneStore((state) => state.cameraMode)
   const cameraPresets = useSceneStore((state) => state.cameraPresets)
-  const room = useSceneStore((state) => state.room)
+  const activeRoom = useActiveRoom()
+  const room = activeRoom ?? DEFAULT_ROOM_DIMENSIONS
   const floorPlan = useSceneStore((state) => state.floorPlan)
   const uiMode = useSceneStore((state) => state.floorPlan.uiMode)
   const is3DMode = uiMode === 'visualize'
   const selectRoom = useSceneStore((state) => state.selectRoom)
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
   const setUiMode = useSceneStore((state) => state.setUiMode)
-  const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
   const resetScene = useSceneStore((state) => state.resetScene)
 
   const queryProjectId = useMemo(() => {
@@ -648,7 +646,6 @@ function Editor() {
       return
     }
 
-    applySelectedRoomToScene()
     setCameraMode('orbit')
     setUiMode('visualize')
   }

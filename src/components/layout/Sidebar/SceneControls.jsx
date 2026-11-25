@@ -52,7 +52,6 @@ const sampleFurnitureTemplates = [
 export default function SceneControls({ onHide }) {
   const floorPlan = useSceneStore((state) => state.floorPlan)
   const setUiMode = useSceneStore((state) => state.setUiMode)
-  const setLivePreview = useSceneStore((state) => state.setLivePreview)
   const setCanvasSettings = useSceneStore((state) => state.setCanvasSettings)
   const setSnapSettings = useSceneStore((state) => state.setSnapSettings)
   const selectRoom = useSceneStore((state) => state.selectRoom)
@@ -62,7 +61,6 @@ export default function SceneControls({ onHide }) {
   const setSelectedRoomDimensions = useSceneStore((state) => state.setSelectedRoomDimensions)
   const upsertDoor = useSceneStore((state) => state.upsertDoor)
   const removeDoor = useSceneStore((state) => state.removeDoor)
-  const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
 
   const cameraMode = useSceneStore((state) => state.cameraMode)
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
@@ -225,7 +223,6 @@ export default function SceneControls({ onHide }) {
           type="button"
           className={floorPlan.uiMode === 'visualize' ? 'active' : ''}
           onClick={() => {
-            applySelectedRoomToScene()
             setCameraMode('orbit')
             setUiMode('visualize')
             setActivePanel('scene')
@@ -293,8 +290,6 @@ export default function SceneControls({ onHide }) {
             updateRoom={updateRoom}
             removeRoom={removeRoom}
             setSelectedRoomDimensions={setSelectedRoomDimensions}
-            setLivePreview={setLivePreview}
-            applySelectedRoomToScene={applySelectedRoomToScene}
             setCameraMode={setCameraMode}
             setUiMode={setUiMode}
             commitNumeric={commitNumeric}

@@ -24,13 +24,30 @@
 
 ### Changed: floor-plan room is authoritative for room dimensions
 - **Root cause:** `room` was persisted as a second copy of the selected floor-plan room's dimensions, and hydration trusted that stale copy until the editor explicitly re-synced. The unused `setRoomDimensions` action could also change `room` without touching the floor plan, quietly breaking the mirror.
-- **Fix:** the persist layer now re-derives `room` from the selected `floorPlan.rooms` entry during hydration (`merge`), so a stale persisted copy can never leak into the scene; removed the dead `setRoomDimensions` action. A full collapse (deleting the mirrored state entirely) remains for a later phase because it touches every 2D/3D consumer.
+- **Fix:** the persist layer now re-derives `room` from the selected `floorPlan.rooms` entry during hydration (`merge`), so a stale persisted copy can never leak into the scene; removed the dead `setRoomDimensions` action. A full collapse (deleting the mirrored state entirely) remains for a later phase because it touches every 2D/3D consumer. Superseded by the entry below.
 - Files: `src/store/useSceneStore.ts`
+
+### Changed: mirrored `room` state removed (persist v7)
+- **Root cause:** the 3D view read a second, duplicated copy of the selected room's dimensions (`state.room`). Every mutation either had to re-sync that copy or leave it stale until the next 3D entry, and the `Live 3D preview while editing` toggle only existed to control that hidden copy.
+- **Fix:** `room` is deleted from scene state, persisted data and saved snapshots. `DEFAULT_ROOM_DIMENSIONS` covers the empty-scene case, and consumers read the selected floor-plan room through the new `useActiveRoom` selector (stable object reference, so no extra re-renders). `syncRoomToScene`, `applySelectedRoomToScene` and the `livePreview` flag/ toggle were removed; entering 3D now simply switches mode. The persist version is bumped 6 → 7 and both `migrate` and `merge` strip `room`/`livePreview`, including data resurrected from older project records. `partialize` now writes an explicit floor-plan field list so removed keys cannot be saved back.
+- **User-visible change:** the "Live 3D preview while editing" checkbox is gone. With the duplicate removed there is nothing left to defer — the 3D view always matches the floor plan.
+- **Verified:** a real v6 localStorage record migrated to v7 (room and livePreview gone, room geometry intact); editing the room width in the 2D panel changed the 3D render; guest save wrote a snapshot without `room`/`livePreview`; production preview create → open → save worked and the 3D context stayed alive with no console errors.
+- Files: `src/store/useSceneStore.ts`, `src/pages/Editor/Editor.jsx`, `src/pages/Dashboard/Dashboard.jsx`, `src/components/canvas/Canvas3D.jsx`, `src/components/canvas/Canvas2D.jsx`, `src/scenes/Room.tsx`, `src/components/layout/Sidebar/SceneControls.jsx`, `src/components/layout/Sidebar/planner/PlannerControls.jsx`
 
 ### Changed: 2D/3D canvases are code-split
 - **Root cause:** three.js, React Three Fiber, drei and postprocessing were bundled into the entry chunk and loaded on every route, including the dashboard and auth pages.
 - **Fix:** `Canvas2D` and `Canvas3D` are now `React.lazy` imports with a loading panel fallback. Initial JS dropped from 1,918 kB (587 kB gzip) to 799 kB (244 kB gzip); the 3D scene ships as a 1,081 kB (331 kB gzip) chunk fetched only when the editor mounts it.
 - Files: `src/pages/Editor/Editor.jsx`
+
+### Changed: editor route is lazy-loaded
+- **Root cause:** `App.jsx` imported every page from the `@pages` barrel, so the editor page, its scene store, the planner and the editor CSS were in the entry chunk even for visitors who only saw the landing, login or dashboard.
+- **Fix:** the app shell imports `Landing`, `Auth` and `Dashboard` directly and loads `Editor` with `React.lazy` + `Suspense` (fallback: "Loading studio..."). `Editor` was removed from the `@pages` barrel (with a comment) so a future barrel import cannot silently pull it back into the entry chunk.
+- **Result:** production entry JS 799 → 753 kB (244 → 234 kB gzip). Opening the editor fetches its own 38 kB chunk plus 17 kB CSS, 13 kB store, 17 kB planner, and icons; the 3D chunk (1,081 kB) is still only fetched when the 3D view opens. Verified dev and production preview: dashboard requests only the entry chunk, the editor route loads its chunks, 3D stays unloaded in 2D, console clean, unauthenticated `/app/:id` still redirects to `/login`.
+- Files: `src/App.jsx`, `src/pages/index.js`
+
+### Changed: project README
+- Replaced the stock Vite template README with a project overview: stack, setup, Firebase env vars and rules deployment, guest vs signed-in behaviour, source layout, notable design decisions and known limitations.
+- Files: `README.md`
 
 ## Phase 1 — Save/load integrity and crash containment (2026-11-23)
 

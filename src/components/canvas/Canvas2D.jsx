@@ -31,7 +31,6 @@ export default function Canvas2D() {
   const updateRoom = useSceneStore((state) => state.updateRoom)
   const removeRoom = useSceneStore((state) => state.removeRoom)
   const selectRoom = useSceneStore((state) => state.selectRoom)
-  const applySelectedRoomToScene = useSceneStore((state) => state.applySelectedRoomToScene)
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
   const clearConstraintMessage = useSceneStore((state) => state.clearConstraintMessage)
@@ -579,7 +578,6 @@ export default function Canvas2D() {
       return
     }
 
-    applySelectedRoomToScene()
     setCameraMode('orbit')
     setUiMode('visualize')
   }

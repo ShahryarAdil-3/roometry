@@ -704,7 +704,6 @@ function Dashboard() {
       updatedAt: new Date(),
       roomCount: 1,
       snapshot: {
-        room: { width: roomWidth, depth: roomDepth, height: 2.7 },
         walls: { north: {}, south: {}, east: {}, west: {} },
         floor: { color: '#f5f5f5' },
         ceiling: { color: '#ffffff' },
@@ -728,7 +727,6 @@ function Dashboard() {
         }],
         selectedRoomId: projectRoomId,
         uiMode: 'draw',
-        livePreview: false,
         canvas: {
           width: roomWidth + margin * 2,
           depth: roomDepth + margin * 2,
