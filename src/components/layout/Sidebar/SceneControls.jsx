@@ -79,7 +79,15 @@ export default function SceneControls({ onHide }) {
   const setFirstPersonSettings = useSceneStore((state) => state.setFirstPersonSettings)
   const resetScene = useSceneStore((state) => state.resetScene)
 
-  const [activePanel, setActivePanel] = useState(floorPlan.uiMode === 'draw' ? 'planner' : 'scene')
+  const defaultActivePanel = floorPlan.uiMode === 'draw' ? 'planner' : 'scene'
+  const [panelSelection, setPanelSelection] = useState({
+    mode: floorPlan.uiMode,
+    panel: defaultActivePanel,
+  })
+  const activePanel = panelSelection.mode === floorPlan.uiMode ? panelSelection.panel : defaultActivePanel
+  const setActivePanel = (panel) => {
+    setPanelSelection({ mode: floorPlan.uiMode, panel })
+  }
   const [selectedFurnitureId, setSelectedFurnitureId] = useState('')
   const [doorWall, setDoorWall] = useState('north')
   const [doorOffset, setDoorOffset] = useState(0)

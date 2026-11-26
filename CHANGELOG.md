@@ -1,5 +1,37 @@
 # Changelog
 
+## Phase 3 — Regression tests, type safety and tooling (2026-11-25)
+
+### Added: repeatable desktop browser regression tests
+- Added Playwright with a 1440 px desktop viewport and software WebGL support. The suite covers unauthenticated editor redirects, the narrow-window guard, guest project creation, editing, save and reload, sidebar state after reload, live 2D/3D canvases, v6-to-v7 migration, and room editing without a mirrored `room` field.
+- Added `npm test`, `playwright.config.ts` and `tests/`; browser reports are ignored by git. Install the test browser once with `npx playwright install chromium`.
+- **Verified:** all 5 tests pass, including a live non-zero WebGL canvas and a guest save/reload round-trip with no legacy snapshot fields.
+
+### Added: TypeScript and TypeScript-aware lint checks
+- Added `typescript` and `typescript-eslint` as development dependencies. `@types/react` and `@types/react-dom` were already present, so no duplicate type packages were needed.
+- Added `npm run typecheck`; the existing tsconfig now uses TypeScript 6-compatible relative path aliases and includes the test files. ESLint now covers `.ts` and `.tsx` as well as JavaScript.
+- **Root cause:** Vite transpiles TypeScript without checking it, and the old ESLint config ignored TypeScript files entirely. Type errors and unsafe hook patterns could therefore pass both build and lint.
+- Files: `package.json`, `package-lock.json`, `tsconfig.json`, `eslint.config.js`
+
+### Fixed: stale sidebar tools after loading or switching modes
+- **Root cause:** `activePanel` copied `floorPlan.uiMode` only during the first render. Loading a project later switched the store to draw mode but could leave Visual Tools selected.
+- **Fix:** panel selection is tagged with the mode it belongs to. When the mode changes, the matching Planner Tools or Visual Tools panel is selected immediately without a state-update effect.
+- Files: `src/components/layout/Sidebar/SceneControls.jsx`
+
+### Fixed: issues exposed by the expanded checks
+- Moved the 2D wheel handler ref update out of render and into an effect; removed unused drei imports; typed R3F pointer events and the legacy furniture `color` field; preserved texture memoization with explicit repeat values.
+- Converted the unused texture utility's CommonJS `module.exports` block to ES-module exports, matching the rest of the app.
+- Replaced Vite config `__dirname` usage with `import.meta.dirname` for compatibility with Vite's native config loader.
+- Files: `src/components/canvas/Canvas2D.jsx`, `src/components/canvas/3d/FurnitureModels.jsx`, `src/components/canvas/3d/CameraSync.jsx`, `src/scenes/Room.tsx`, `src/store/useSceneStore.ts`, `src/utils/textures.js`, `vite.config.js`
+
+### Changed: dependency security updates
+- Applied non-breaking `npm audit fix` updates. This removed the reported critical advisories and reduced production findings from 13 to 4.
+- Four high-severity advisories remain in Firebase's `@grpc/grpc-js` chain. npm's only suggested fix is a forced downgrade to Firebase 9.14.0, so it was deliberately not applied.
+
+### Verification and remaining external checks
+- `npm run typecheck`, `npm run lint`, `npm test` (5 tests), and `npm run build` pass. The 3D chunk remains lazy-loaded and is approximately 993 kB after the dependency updates.
+- No Firestore deployment, signed-in cloud test, commit, push, secret-file change, or user-data deletion was performed. The empty untracked `null/` directory remains pending removal approval.
+
 ## Phase 2 — Security rules, timestamp normalisation, desktop guard (2026-11-23)
 
 ### Added: versioned Firestore security rules

@@ -49,6 +49,7 @@ export interface FurnitureItem {
   position: [number, number, number]
   rotation: [number, number, number]
   scale: [number, number, number]
+  color?: string
   material?: Partial<MaterialState>
 }
 
@@ -385,7 +386,7 @@ const createInitialState = (
     })),
 
   setFurniturePlacement: (placement) =>
-    set((state) => ({
+    set(() => ({
       furniturePlacement: placement,
     })),
 

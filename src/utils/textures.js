@@ -350,8 +350,36 @@ const materialPresets = {
   }
 }
 
-// Export all textures
-module.exports = {
+const getTextureByName = (category, name) => {
+  const textures = {
+    wood: woodTextures,
+    stone: stoneTextures,
+    metal: metalTextures,
+    fabric: fabricTextures,
+    floor: floorTextures,
+    wall: wallTextures,
+    glass: glassMaterials
+  }
+  return textures[category]?.[name] || null
+}
+
+const getRandomTexture = (category) => {
+  const textures = {
+    wood: Object.values(woodTextures),
+    stone: Object.values(stoneTextures),
+    metal: Object.values(metalTextures),
+    fabric: Object.values(fabricTextures),
+    floor: Object.values(floorTextures),
+    wall: Object.values(wallTextures),
+    glass: Object.values(glassMaterials)
+  }
+  const list = textures[category] || []
+  return list[Math.floor(Math.random() * list.length)]
+}
+
+const getPreset = (name) => materialPresets[name] || materialPresets.modern
+
+export {
   woodTextures,
   stoneTextures,
   metalTextures,
@@ -361,32 +389,7 @@ module.exports = {
   glassMaterials,
   paintColors,
   materialPresets,
-  getTextureByName: (category, name) => {
-    const textures = {
-      wood: woodTextures,
-      stone: stoneTextures,
-      metal: metalTextures,
-      fabric: fabricTextures,
-      floor: floorTextures,
-      wall: wallTextures,
-      glass: glassMaterials
-    }
-    return textures[category]?.[name] || null
-  },
-  getRandomTexture: (category) => {
-    const textures = {
-      wood: Object.values(woodTextures),
-      stone: Object.values(stoneTextures),
-      metal: Object.values(metalTextures),
-      fabric: Object.values(fabricTextures),
-      floor: Object.values(floorTextures),
-      wall: Object.values(wallTextures),
-      glass: Object.values(glassMaterials)
-    }
-    const list = textures[category] || []
-    return list[Math.floor(Math.random() * list.length)]
-  },
-  getPreset: (name) => {
-    return materialPresets[name] || materialPresets.modern
-  }
+  getTextureByName,
+  getRandomTexture,
+  getPreset,
 }

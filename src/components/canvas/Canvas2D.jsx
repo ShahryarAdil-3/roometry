@@ -488,7 +488,9 @@ export default function Canvas2D() {
     )
   }
 
-  wheelHandlerRef.current = handleWheel
+  useEffect(() => {
+    wheelHandlerRef.current = handleWheel
+  })
 
   useEffect(() => {
     const element = canvasRef.current

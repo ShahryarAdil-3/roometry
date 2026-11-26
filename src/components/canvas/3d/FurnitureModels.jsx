@@ -3,7 +3,6 @@
 
 import React, { useMemo } from 'react'
 import * as THREE from 'three'
-import { useGLTF, useTexture } from '@react-three/drei'
 
 // Realistic dimensions (in meters):
 // Sofa: 2.0m x 0.9m x 0.8m (L x D x H)

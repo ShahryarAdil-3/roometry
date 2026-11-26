@@ -26,8 +26,15 @@ npm install
 npm run dev      # dev server on http://localhost:5173
 npm run build    # production build in dist/
 npm run preview  # serve the production build locally
-npm run lint     # ESLint (JS/JSX)
+npm run lint     # ESLint (JS/JSX/TS/TSX)
+npm run typecheck # TypeScript checks without emitting files
+npm test         # Playwright desktop regression tests
 ```
+
+For the browser tests, install Chromium once with `npx playwright install chromium`.
+Playwright starts Vite automatically and checks the auth redirect, desktop-width
+notice, guest create/save/reload flow, v6-to-v7 scene migration, and live 2D/3D
+canvases at a 1440 px viewport.
 
 ### Firebase configuration
 
@@ -110,7 +117,7 @@ src/
   in this environment; guest save/load is verified.
 - The 3D scene renders the selected room only, not the whole multi-room plan.
 - Windows narrower than 1024 px show a notice rather than a compact layout.
-- TypeScript files are transpiled but not type-checked in `npm run build`
-  (`typescript` is not installed); ESLint currently covers JS/JSX only.
+- `npm run build` transpiles TypeScript but does not type-check it; run
+  `npm run typecheck` separately.
 
 See `CHANGELOG.md` for the fix history and verification notes.

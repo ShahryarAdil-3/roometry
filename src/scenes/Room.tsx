@@ -1,4 +1,5 @@
 import { useEffect, useMemo, Suspense } from 'react'
+import type { ThreeEvent } from '@react-three/fiber'
 import { useTexture } from '@react-three/drei'
 import * as THREE from 'three'
 import { DEFAULT_ROOM_DIMENSIONS, useActiveRoom, useSceneStore } from '../store/useSceneStore'
@@ -16,8 +17,8 @@ interface SurfaceProps {
     color: string
     textureUrl?: string
     repeat?: [number, number]
-    onPointerMove?: (event: any) => void
-    onPointerDown?: (event: any) => void
+    onPointerMove?: (event: ThreeEvent<PointerEvent>) => void
+    onPointerDown?: (event: ThreeEvent<PointerEvent>) => void
 }
 
 interface WallWithDoorProps {
@@ -40,8 +41,8 @@ interface RoomProps {
     wallTexture?: string
     ceilingColor?: string
     onFurniturePointerDown?: (furnitureId: string) => void
-    onFloorPointerMove?: (event: any) => void
-    onFloorPointerDown?: (event: any) => void
+    onFloorPointerMove?: (event: ThreeEvent<PointerEvent>) => void
+    onFloorPointerDown?: (event: ThreeEvent<PointerEvent>) => void
 }
 
 const prepareTexture = (texture: THREE.Texture | null, repeat: [number, number]) => {
@@ -73,9 +74,11 @@ function Surface({
         typeof textureUrl === 'string' && isSupportedTextureUrl(textureUrl) ? textureUrl : null
     const loadedTexture = useTexture(resolvedTextureUrl ?? FALLBACK_TEXTURE)
 
+    const repeatX = repeat[0]
+    const repeatY = repeat[1]
     const map = useMemo(
-        () => prepareTexture(resolvedTextureUrl ? loadedTexture : null, repeat),
-        [loadedTexture, repeat[0], repeat[1], resolvedTextureUrl],
+        () => prepareTexture(resolvedTextureUrl ? loadedTexture : null, [repeatX, repeatY]),
+        [loadedTexture, repeatX, repeatY, resolvedTextureUrl],
     )
 
     useEffect(() => () => {
