@@ -32,12 +32,15 @@ const PageTransition = ({ children }) => {
 const EditorRoute = () => {
   const location = useLocation()
   const [access, setAccess] = useState(() => {
-    if (auth.currentUser) return 'authenticated'
+    if (auth?.currentUser) return 'authenticated'
     const isGuest = window.localStorage.getItem('roometry_guest_mode') === 'true'
-    return isGuest ? 'guest' : 'pending'
+    if (isGuest) return 'guest'
+    return auth ? 'pending' : 'unauthenticated'
   })
 
   useEffect(() => {
+    if (!auth) return undefined
+
     return onAuthStateChanged(auth, (user) => {
       if (user) {
         setAccess('authenticated')
@@ -82,7 +85,7 @@ const AnimatedRoutes = () => {
   const location = useLocation()
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
+    <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<PageTransition><Landing /></PageTransition>} />
         <Route path="/login" element={<PageTransition><Login /></PageTransition>} />

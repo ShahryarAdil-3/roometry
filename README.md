@@ -13,7 +13,7 @@ touch or mobile controls.
 
 - **React 19 + Vite 8** (rolldown build) with `react-router-dom` 7
 - **three.js / React Three Fiber / drei / postprocessing** for the 3D view
-- **Zustand 5** with `persist` for the scene (localStorage, key `roometry-scene-v3`)
+- **Zustand 5** with `persist` for the scene (localStorage, key `roometry-scene`)
 - **Firebase** Auth (email/password) and Firestore (`rooms` collection) for signed-in projects
 - **framer-motion** for page transitions, **Tailwind CSS 4** plus hand-written CSS for layout
 
@@ -49,12 +49,23 @@ VITE_FIREBASE_MESSAGING_SENDER_ID
 VITE_FIREBASE_APP_ID
 ```
 
-Copy `.env.example` to `.env.local` and fill in the values. Without an
-`.env.local`, `src/firebase/firebase.js` falls back to committed values for the
-project's development Firebase instance so the app still runs locally; those
-fallbacks should be removed once every environment has its own `.env.local`.
+Copy `.env.example` to `.env.local` and fill in the values for local
+development. Vite embeds these values at build time.
+
 Firebase web config values are public identifiers, not secrets — they are safe
-to ship, but access is controlled by security rules.
+to ship, but access is controlled by security rules. No fallback config is
+committed. If the variables are missing, the landing page and guest mode still
+load, and the auth pages show a configuration notice instead of crashing.
+
+#### Vercel
+
+Add the same six variables under **Project Settings → Environment Variables**
+for the Production and Preview environments, then redeploy. Environment changes
+do not apply to an existing deployment; Vercel must build again.
+
+`vercel.json` rewrites client-side routes such as `/dashboard` and
+`/app/:projectId` to `index.html`. Without it, refreshing or opening a deep link
+on Vercel returns a 404 even though the landing page works.
 
 ### Firestore rules
 

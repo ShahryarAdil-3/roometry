@@ -627,6 +627,31 @@ function Dashboard() {
   useEffect(() => {
     const guestEnabled = window.localStorage.getItem('roometry_guest_mode') === 'true'
 
+    const loadGuestProjects = () => {
+      setIsGuestMode(true)
+      setProfileLabel('Guest mode')
+
+      try {
+        const storedRooms = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+        setRooms(sortRoomsNewestFirst(storedRooms))
+      } catch {
+        setRooms([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (!auth) {
+      if (guestEnabled) {
+        loadGuestProjects()
+      } else {
+        navigate('/login', { replace: true, state: { from: '/dashboard' } })
+        setRooms([])
+        setLoading(false)
+      }
+      return undefined
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(true)
 
@@ -641,18 +666,7 @@ function Dashboard() {
       }
 
       if (guestEnabled) {
-        setIsGuestMode(true)
-        setProfileLabel('Guest mode')
-
-        try {
-          const storedRooms = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
-          setRooms(sortRoomsNewestFirst(storedRooms))
-        } catch {
-          setRooms([])
-        } finally {
-          setLoading(false)
-        }
-
+        loadGuestProjects()
         return
       }
 
@@ -666,7 +680,9 @@ function Dashboard() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth)
+      if (auth) {
+        await signOut(auth)
+      }
       window.localStorage.removeItem('roometry_guest_mode')
       navigate('/', { replace: true })
     } catch (error) {
@@ -730,7 +746,7 @@ function Dashboard() {
         window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
         setRooms(updated)
       } else {
-        if (!auth.currentUser) {
+        if (!auth?.currentUser || !db) {
           throw new Error('Sign in or continue as a guest before creating a project.')
         }
 
@@ -872,7 +888,7 @@ function Dashboard() {
         window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
         setRooms(updated)
       } else {
-        if (!auth.currentUser) {
+        if (!auth?.currentUser || !db) {
           throw new Error('Sign in or continue as a guest before creating a project.')
         }
         const docRef = doc(collection(db, 'rooms'))

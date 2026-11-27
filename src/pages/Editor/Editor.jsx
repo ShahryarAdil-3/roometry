@@ -418,7 +418,7 @@ function Editor() {
     return base
   }, [cameraMode, cameraPresets, room.depth, room.height, room.width, uiMode])
 
-  const [authUser, setAuthUser] = useState(() => auth.currentUser)
+  const [authUser, setAuthUser] = useState(() => auth?.currentUser ?? null)
   const [activeProjectId, setActiveProjectId] = useState(queryProjectId)
   const [isProjectLoading, setIsProjectLoading] = useState(false)
   const [saveState, setSaveState] = useState('idle')
@@ -564,6 +564,8 @@ function Editor() {
   }, [queryProjectId])
 
   useEffect(() => {
+    if (!auth) return undefined
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthUser(user)
     })

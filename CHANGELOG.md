@@ -1,5 +1,26 @@
 # Changelog
 
+## Production white screen and first-load animations (2026-11-27)
+
+### Fixed: Vercel deployment rendered a blank page
+- **Root cause:** `src/firebase/firebase.js` threw during module evaluation when `VITE_FIREBASE_API_KEY` was absent. Vite inlines environment variables at build time, so a Vercel build without the Firebase variables produced JavaScript that failed before React could mount. The browser console showed `Firebase is not configured...`, `#root` stayed empty, and the landing page never rendered.
+- **Fix:** Firebase is now optional at boot. The app exports `null` auth/database clients when configuration is missing, logs a development warning instead of throwing, and keeps the landing page and guest mode working. Auth pages display the deployment configuration message, and Firebase consumers guard against missing clients.
+- Files: `src/firebase/firebase.js`, `src/firebase/projects.js`, `src/App.jsx`, `src/pages/Auth/Auth.jsx`, `src/pages/Dashboard/Dashboard.jsx`, `src/pages/Editor/Editor.jsx`
+- **Deployment action required:** add `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID` and `VITE_FIREBASE_APP_ID` to the Vercel project's Production and Preview environments, then redeploy. Existing deployments do not pick up newly added environment variables.
+
+### Added: SPA routing for Vercel
+- Added `vercel.json` with a rewrite to `index.html`. Without it, the landing page loads but deep links such as `/dashboard`, `/login` and `/app/:projectId` return 404 on refresh because Vercel looks for matching files.
+
+### Fixed: landing animations were skipped on the first visit
+- **Root cause:** `<AnimatePresence initial={false}>` in `src/App.jsx` set the presence context's `initial` flag to `false`. Framer Motion uses that flag to block initial animations for all nested motion components, so the landing header and hero content jumped straight to their final state on a cold load. Navigating back later remounted them normally, which is why the animations appeared to work on subsequent visits.
+- **Fix:** removed `initial={false}`; the first page load now runs the same entrance transitions as later navigations.
+- Files: `src/App.jsx`
+
+### Verification
+- Reproduced the blank production page with `VITE_FIREBASE_API_KEY=` and a production build: before the fix `#root` had zero children and the Firebase error was the only page error. After the fix the landing page, login notice and guest dashboard all render with no page errors.
+- Confirmed the first-load landing header now starts at `opacity: 0` with a vertical offset and transitions to its final position in Chromium.
+- `npm run typecheck`, `npm run lint`, the Playwright suite and `npm run build` pass.
+
 ## Floor plan image import (2026-11-27)
 
 ### Added: dashboard image-to-plan workflow

@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '@appFirebase/firebase'
+import { auth, firebaseConfigError } from '@appFirebase/firebase'
 import ThemeToggle from '@components/ThemeToggle'
 import './Auth.css'
 
@@ -146,11 +146,15 @@ export const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(firebaseConfigError ?? '')
   const [submitting, setSubmitting] = useState(false)
 
   const handleLogin = async (event) => {
     event.preventDefault()
+    if (!auth) {
+      setError(firebaseConfigError)
+      return
+    }
     setError('')
     setSubmitting(true)
 
@@ -250,11 +254,15 @@ export const Register = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(firebaseConfigError ?? '')
   const [submitting, setSubmitting] = useState(false)
 
   const handleRegister = async (event) => {
     event.preventDefault()
+    if (!auth) {
+      setError(firebaseConfigError)
+      return
+    }
     setError('')
     setSubmitting(true)
 

@@ -14,6 +14,9 @@ export const saveProjectSnapshot = async ({ uid, projectId, name, snapshot }) =>
   if (!uid) {
     throw new Error('User must be authenticated to save projects.')
   }
+  if (!db) {
+    throw new Error('Firebase is not configured for this deployment.')
+  }
 
   const safeName = (name || 'Untitled Project').trim() || 'Untitled Project'
   const floorPlan = snapshot?.floorPlan ?? null
@@ -64,6 +67,9 @@ export const saveProjectSnapshot = async ({ uid, projectId, name, snapshot }) =>
 export const fetchProjectSnapshot = async ({ uid, projectId }) => {
   if (!uid || !projectId) {
     return null
+  }
+  if (!db) {
+    throw new Error('Firebase is not configured for this deployment.')
   }
 
   const projectRef = doc(db, PROJECTS_COLLECTION, projectId)

@@ -15,15 +15,28 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-if (!firebaseConfig.apiKey) {
-  throw new Error(
-    'Firebase is not configured. Copy .env.example to .env.local and fill in the VITE_FIREBASE_* variables.',
-  );
+const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.appId,
+);
+
+export const firebaseConfigError = isFirebaseConfigured
+  ? null
+  : 'Firebase is not configured for this deployment. Add the VITE_FIREBASE_* variables to .env.local or Vercel, then rebuild, or continue as a guest.';
+
+let auth = null;
+let db = null;
+
+if (isFirebaseConfigured) {
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+} else if (import.meta.env.DEV) {
+  console.warn(firebaseConfigError);
 }
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
-// Export Authentication and Firestore instances
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Null when the deployment has no Firebase configuration. Public pages and
+// guest mode still boot; authenticated features report the missing setup.
+export { auth, db };
