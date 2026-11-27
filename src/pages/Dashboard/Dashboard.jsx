@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { AnimatePresence, motion, useAnimation } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import {
@@ -22,16 +22,13 @@ import {
   Plus,
   Trash2,
   Wand2,
-  Search,
-  Filter,
-  SortAsc,
-  MoreVertical,
   Eye,
-  Heart,
-  Share2
+  MoreVertical,
+  FileImage,
 } from 'lucide-react'
 import { auth, db } from '@appFirebase/firebase'
 import ThemeToggle from '@components/ThemeToggle'
+import FloorPlanImportModal from '@components/FloorPlanImportModal'
 import './Dashboard.css'
 
 const getCreatedTime = (room) => {
@@ -77,18 +74,6 @@ const ProjectCard = ({
   const [isHovered, setIsHovered] = useState(false)
   const [showActions, setShowActions] = useState(false)
 
-  const cardControls = useAnimation()
-
-  const handleHoverStart = () => {
-    setIsHovered(true)
-    cardControls.start({ scale: 1.02, y: -5 })
-  }
-
-  const handleHoverEnd = () => {
-    setIsHovered(false)
-    cardControls.start({ scale: 1, y: 0 })
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -97,8 +82,8 @@ const ProjectCard = ({
       exit={{ opacity: 0, y: -20, scale: 0.95 }}
       whileHover={{ scale: 1.02 }}
       className="project-card"
-      onHoverStart={handleHoverStart}
-      onHoverEnd={handleHoverEnd}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
     >
       <motion.div
         className="project-card-image"
@@ -115,6 +100,9 @@ const ProjectCard = ({
         <div className="project-card-badge">
           {room.snapshot?.cameraMode === 'firstPerson' ? '3D' : '2D'}
         </div>
+        {room.importedFromImage && (
+          <div className="project-card-badge-import">Imported</div>
+        )}
         <motion.button
           className="project-card-quick-action"
           initial={{ opacity: 0, scale: 0.8 }}
@@ -215,8 +203,7 @@ const EmptyState = ({ onCreate }) => {
       >
         <Plus size={18} />
         Create New Project
-      </motion.button>
-    </motion.div>
+      </motion.button>    </motion.div>
   )
 }
 
@@ -491,10 +478,6 @@ const DashboardHeader = ({ user, onLogout, onCreate, isGuest }) => {
       </div>
 
       <div className="dashboard-header-right">
-        <div className="dashboard-search">
-          <Search size={16} />
-          <input type="text" placeholder="Search projects..." />
-        </div>
         <ThemeToggle />
         <motion.button
           className="dashboard-button-primary"
@@ -525,6 +508,7 @@ const DashboardHeader = ({ user, onLogout, onCreate, isGuest }) => {
 const QuickActions = ({ onAction }) => {
   const actions = [
     { icon: LayoutGrid, label: 'New Project', value: 'new' },
+    { icon: FileImage, label: 'Import Floor Plan', value: 'import' },
   ]
 
   return (
@@ -557,7 +541,7 @@ const QuickActions = ({ onAction }) => {
 }
 
 // Projects Grid
-const ProjectsGrid = ({ rooms, onEdit, onDelete, onOpen, loading }) => {
+const ProjectsGrid = ({ rooms, onEdit, onDelete, onOpen, onCreateNew, loading }) => {
 
   if (loading) {
     return (
@@ -580,7 +564,7 @@ const ProjectsGrid = ({ rooms, onEdit, onDelete, onOpen, loading }) => {
   }
 
   if (rooms.length === 0) {
-    return <EmptyState onCreate={() => onEdit(null)} />
+    return <EmptyState onCreate={onCreateNew} />
   }
 
   return (
@@ -619,6 +603,7 @@ function Dashboard() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [roomToDelete, setRoomToDelete] = useState(null)
   const [roomToEdit, setRoomToEdit] = useState(null)
 
@@ -758,7 +743,7 @@ function Dashboard() {
           updatedAt: serverTimestamp(),
         })
         newRoom.id = docRef.id
-        setRooms([newRoom, ...rooms])
+        setRooms((current) => [newRoom, ...current])
       }
 
       navigate(`/app/${encodeURIComponent(newRoom.id)}`, {
@@ -793,7 +778,7 @@ function Dashboard() {
         setRooms(updated)
       } else {
         await deleteDoc(doc(db, 'rooms', roomToDelete.id))
-        setRooms(rooms.filter(r => r.id !== roomToDelete.id))
+        setRooms((current) => current.filter(r => r.id !== roomToDelete.id))
       }
       setIsDeleteModalOpen(false)
       setRoomToDelete(null)
@@ -819,7 +804,7 @@ function Dashboard() {
           name: updatedRoom.name,
           updatedAt: new Date()
         })
-        setRooms(rooms.map(r => r.id === updatedRoom.id ? updatedRoom : r))
+        setRooms((current) => current.map(r => r.id === updatedRoom.id ? updatedRoom : r))
       }
       setIsEditModalOpen(false)
       setRoomToEdit(null)
@@ -828,10 +813,98 @@ function Dashboard() {
     }
   }
 
+  const handleImportProject = async ({ name, rooms, canvasWidthM, canvasDepthM, pixelsPerMetre }) => {
+    setDashboardError('')
+    const projectRoomId = `room_${Date.now()}`
+    const projectName = (name || '').trim() || `Imported Plan ${new Date().toLocaleDateString()}`
+    const margin = 1
+    const sourceWidth = Math.max(1, Number(canvasWidthM) || 1)
+    const sourceDepth = Math.max(1, Number(canvasDepthM) || 1)
+
+    const floorPlanRooms = rooms.map((room, index) => ({
+      id: `${projectRoomId}_r${index}`,
+      name: room.name || `Room ${index + 1}`,
+      x: room.x - sourceWidth / 2,
+      z: room.z - sourceDepth / 2,
+      width: room.width,
+      depth: room.depth,
+      height: room.height ?? 2.7,
+      wallThickness: room.wallThickness ?? 0.15,
+      doors: [],
+    }))
+
+    const canvasWidth = Math.max(Math.ceil(sourceWidth + margin * 2), 10)
+    const canvasDepth = Math.max(Math.ceil(sourceDepth + margin * 2), 8)
+    const ppm = Math.min(140, Math.max(16, Math.round(pixelsPerMetre)))
+
+    const newRoom = {
+      id: projectRoomId,
+      name: projectName,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      roomCount: floorPlanRooms.length,
+      importedFromImage: true,
+      snapshot: {
+        walls: { north: {}, south: {}, east: {}, west: {} },
+        floor: { color: '#f5f5f5' },
+        ceiling: { color: '#ffffff' },
+        furniture: [],
+        cameraMode: 'orbit',
+        dimensions: { width: canvasWidth, depth: canvasDepth },
+        furnitureCount: 0,
+        colors: { primary: '#c07a45' },
+      },
+      floorPlan: {
+        rooms: floorPlanRooms,
+        selectedRoomId: floorPlanRooms[0]?.id ?? null,
+        uiMode: 'draw',
+        canvas: { width: canvasWidth, depth: canvasDepth, pixelsPerMeter: ppm },
+        snapEnabled: true,
+        snapStep: 0.5,
+        constraintMessage: null,
+      },
+    }
+
+    try {
+      if (isGuestMode) {
+        const stored = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')
+        const updated = [newRoom, ...(Array.isArray(stored) ? stored : [])]
+        window.localStorage.setItem('roometry_guest_rooms', JSON.stringify(updated))
+        setRooms(updated)
+      } else {
+        if (!auth.currentUser) {
+          throw new Error('Sign in or continue as a guest before creating a project.')
+        }
+        const docRef = doc(collection(db, 'rooms'))
+        await setDoc(docRef, {
+          ...newRoom,
+          uid: auth.currentUser.uid,
+          id: docRef.id,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+        newRoom.id = docRef.id
+        setRooms((current) => [newRoom, ...current])
+      }
+
+      setIsImportModalOpen(false)
+      navigate(`/app/${encodeURIComponent(newRoom.id)}`, {
+        replace: true,
+        state: { snapshot: newRoom.snapshot, floorPlan: newRoom.floorPlan },
+      })
+    } catch (error) {
+      console.error('Error creating imported project:', error)
+      setDashboardError(error.message || 'Could not create the project. Please try again.')
+    }
+  }
+
   const handleQuickAction = (action) => {
     switch (action) {
       case 'new':
         setIsCreateModalOpen(true)
+        break
+      case 'import':
+        setIsImportModalOpen(true)
         break
     }
   }
@@ -873,21 +946,6 @@ function Dashboard() {
           >
             Your Projects
           </motion.h2>
-          <motion.div
-            className="dashboard-section-actions"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-          >
-            <button className="dashboard-sort-btn">
-              <SortAsc size={14} />
-              Sort
-            </button>
-            <button className="dashboard-filter-btn">
-              <Filter size={14} />
-              Filter
-            </button>
-          </motion.div>
         </div>
 
         <ProjectsGrid
@@ -896,6 +954,7 @@ function Dashboard() {
           onEdit={handleEditProject}
           onDelete={handleDeleteProject}
           onOpen={handleOpenProject}
+          onCreateNew={() => setIsCreateModalOpen(true)}
         />
       </motion.div>
 
@@ -918,6 +977,12 @@ function Dashboard() {
         onClose={() => setIsEditModalOpen(false)}
         onSave={confirmEditProject}
         project={roomToEdit}
+      />
+
+      <FloorPlanImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportProject}
       />
     </div>
   )

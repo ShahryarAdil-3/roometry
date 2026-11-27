@@ -41,7 +41,7 @@ test('migrates v6 scene data without resurrecting legacy fields', async ({ page 
 
     useSceneStore.setState(migrated)
     useSceneStore.getState().setUiMode('visualize')
-    const persisted = JSON.parse(window.localStorage.getItem('roometry-scene-v3') ?? '{}')
+    const persisted = JSON.parse(window.localStorage.getItem('roometry-scene') ?? '{}')
 
     return {
       version: options.version,

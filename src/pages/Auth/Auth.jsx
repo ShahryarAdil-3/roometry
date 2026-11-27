@@ -171,7 +171,7 @@ export const Login = () => {
     window.localStorage.setItem('roometry_guest_mode', 'true')
     const destination = location.state?.from && location.state.from !== '/login'
       ? location.state.from
-      : '/dashboard'
+      : '/app'
     navigate(destination, { replace: true })
   }
 
@@ -275,7 +275,7 @@ export const Register = () => {
     window.localStorage.setItem('roometry_guest_mode', 'true')
     const destination = location.state?.from && location.state.from !== '/login'
       ? location.state.from
-      : '/dashboard'
+      : '/app'
     navigate(destination, { replace: true })
   }
 

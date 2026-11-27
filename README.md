@@ -76,6 +76,10 @@ Check the currently deployed rules first — older `rooms` documents without a
   kept in this browser only.
 - **Signed-in mode** — projects are stored in Firestore under the user's uid and
   follow the user across browsers.
+- **Import Floor Plan** — choose **Import Floor Plan** on the dashboard and
+  upload a PNG, JPEG, WebP or BMP. Enter the image scale, adjust wall contrast,
+  review the detected rooms and create an editable 2D project. The importer runs
+  locally in the browser; images are not uploaded to Firebase.
 - **Editor** — `/app` or `/app/:projectId`. The left panel holds layer and scene
   controls, the canvas toggles between the 2D planner and the 3D view, and the
   right panel edits the selected room. Saves write the whole floor plan plus the
@@ -95,7 +99,7 @@ src/
                           materials, UI mode) with persist + hydration merge
   scenes/Room.tsx         the 3D room, walls, doors and furniture renderer
   firebase/               Firebase init and Firestore project helpers
-  utils/                  texture URL validation, helpers
+  utils/                  floor-plan image analysis, texture URL validation, helpers
 ```
 
 ## Notable behaviour
@@ -116,6 +120,11 @@ src/
 - Signed-in cloud saves have not been exercised against a dedicated test account
   in this environment; guest save/load is verified.
 - The 3D scene renders the selected room only, not the whole multi-room plan.
+- Image import targets straight-down, high-contrast plans with dark walls and a
+  light margin. Rooms become editable rectangular bounds, so irregular shapes
+  are approximated; labels are renamed manually. Large open-plan openings may
+  remain connected, while skewed photos, furniture-heavy scans and faint walls
+  need contrast adjustment or manual correction.
 - Windows narrower than 1024 px show a notice rather than a compact layout.
 - `npm run build` transpiles TypeScript but does not type-check it; run
   `npm run typecheck` separately.

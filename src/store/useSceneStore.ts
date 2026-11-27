@@ -543,7 +543,7 @@ const createInitialState = (
 
   createRoom: (room) => {
     const roomId = room.id ?? `room-${Date.now()}`
-    let createdId: string | null = null
+    let canCreate = false
     set((state) => {
       const name = room.name ?? `Room ${state.floorPlan.rooms.length + 1}`
       const dimensions = sanitizeRoomDimensions(room)
@@ -574,7 +574,7 @@ const createInitialState = (
         }
       }
 
-      createdId = roomId
+      canCreate = true
 
       return {
         floorPlan: {
@@ -586,7 +586,7 @@ const createInitialState = (
       }
     })
 
-    return createdId
+    return canCreate ? roomId : null
   },
 
   moveRoom: (roomId, nextX, nextZ) => {
@@ -820,7 +820,7 @@ const createInitialState = (
 
 export const useSceneStore = create<SceneState>()(
   persist((set, get) => createInitialState(set, get), {
-    name: 'roometry-scene-v3',
+    name: 'roometry-scene',
     version: 7,
     storage: createJSONStorage(() => localStorage),
     partialize: (state) => ({

@@ -1,89 +1,9 @@
-.app {
-  position: relative;
-  width: 100vw;
-  height: 100svh;
-  overflow: hidden;
-  font-family: inherit;
-  display: flex;
-  flex-direction: row;
-}
-
-.app-sidebar {
-  flex-shrink: 0;
-  width: 0;
-  transition: width 300ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 300ms ease;
-  overflow: hidden;
-  position: relative;
-  z-index: 10;
-  opacity: 0;
-}
-
-.app-sidebar.open {
-  width: min(350px, 100vw);
-  opacity: 1;
-}
-
-.app-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  position: relative;
-  height: 100%;
-}
-
-.app-topbar {
-  position: absolute;
-  top: 148px;
-  right: 0;
-  left: auto;
-  display: flex;
-  flex-direction: column;
-  flex-wrap: nowrap;
-  justify-content: flex-start;
-  align-items: flex-end;
-  gap: 6px;
-  z-index: 40;
-}
-
-.app-topbar-handle {
-  width: 22px;
-  height: 48px;
-  border-radius: 999px 0 0 999px;
-  border: 1px solid rgba(164, 210, 238, 0.45);
-  background: rgba(17, 29, 40, 0.88);
-  color: #ecf4fb;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
-  cursor: pointer;
-}
-
-.app-topbar-tray {
-  --tray-peek: 10px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 6px;
-  border-radius: 14px;
-  border: 1px solid rgba(160, 206, 234, 0.35);
-  background: rgba(17, 29, 40, 0.8);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(10px);
-  transform: translateX(calc(100% - var(--tray-peek)));
-  transition: transform 200ms ease;
-}
-
-.app-topbar:hover .app-topbar-tray,
-.app-topbar.open .app-topbar-tray,
-.app-topbar:focus-within .app-topbar-tray {
-  transform: translateX(0);
-}
-
-.app-primary-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
+/*
+ * layout.css — LEGACY FILE, NOW EMPTY
+ *
+ * The old `.app`, `.app-sidebar`, `.app-topbar` layout has been replaced.
+ * All editor layout is handled by the `.editor-*` class hierarchy in:
+ *   src/pages/Editor/Editor.css
+ *
+ * Do not add new rules here.
+ */

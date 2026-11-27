@@ -44,7 +44,7 @@ test('creates, saves, reloads, and visualizes a guest project', async ({ page })
   await widthInput.fill('11')
   await widthInput.blur()
   await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.getByText('Project saved successfully!')).toBeVisible()
+  await expect(page.getByText('Project saved!', { exact: true })).toBeVisible()
 
   const savedProject = await page.evaluate(() => {
     const projects = JSON.parse(window.localStorage.getItem('roometry_guest_rooms') ?? '[]')

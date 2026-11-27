@@ -646,7 +646,6 @@ export default function Canvas2D() {
   return (
     <CanvasShell
       showTopChrome={showTopChrome}
-      pixelsPerMeter={pixelsPerMeter}
       activeSnapStep={activeSnapStep}
       snapEnabled={floorPlan.snapEnabled}
       view={view}

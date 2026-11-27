@@ -13,7 +13,8 @@ const getInitialTheme = () => {
     return saved
   }
 
-  return 'dark'
+  // Fall back to the OS preference when the user has never chosen a theme.
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
 export default function ThemeProvider({ children }) {

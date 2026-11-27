@@ -4,28 +4,17 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import {
   LayoutGrid,
-  Cuboid,
   Eye,
-  MousePointer2,
-  Move3D,
-  Type,
   Save,
   Undo,
   Redo,
-  Settings,
   HelpCircle,
   ChevronLeft,
-  ChevronRight,
-  Minimize2,
-  Maximize2,
   X,
-  Plus,
-  Trash2
 } from 'lucide-react'
 import { DEFAULT_ROOM_DIMENSIONS, useActiveRoom, useSceneStore } from '@store/useSceneStore'
 import { SceneControls } from '@components/layout/Sidebar'
 import CanvasErrorBoundary from '@components/canvas/CanvasErrorBoundary'
-import { ControlIcon } from '@components/ui/ControlIcons'
 import ThemeToggle from '@components/ThemeToggle'
 import { auth } from '@appFirebase/firebase'
 import { fetchProjectSnapshot, saveProjectSnapshot } from '@appFirebase/projects'
@@ -69,8 +58,6 @@ const applySnapshotToStore = (snapshot) => {
 
   const current = useSceneStore.getState()
   const incomingFloorPlan = { ...(snapshot.floorPlan ?? {}) }
-  // Drop fields the current schema no longer has so old saves cannot
-  // resurrect them in the live store (and from there in the next save).
   delete incomingFloorPlan.livePreview
   const incomingRooms = Array.isArray(incomingFloorPlan.rooms)
     ? cloneSerializable(incomingFloorPlan.rooms)
@@ -125,82 +112,23 @@ const applySnapshotToStore = (snapshot) => {
   return true
 }
 
-// Animated Toolbar
-const Toolbar = ({ activeTool, onToolChange, is3DMode, onToggleMode }) => {
-  const tools = [
-    { id: 'select', icon: MousePointer2, label: 'Select', color: '#c07a45' },
-    { id: 'move', icon: Move3D, label: 'Move', color: '#3a2e24' },
-    { id: 'add', icon: Plus, label: 'Add', color: '#5c6370' },
-    { id: 'delete', icon: Trash2, label: 'Delete', color: '#dc2626' },
-  ]
-
-  return (
-    <motion.div
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="editor-toolbar"
-    >
-      <div className="editor-toolbar-group">
-        {tools.map((tool) => {
-          const Icon = tool.icon
-          const isActive = activeTool === tool.id
-
-          return (
-            <motion.button
-              key={tool.id}
-              className={`editor-toolbar-btn ${isActive ? 'active' : ''}`}
-              whileHover={{ scale: 1.1, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => onToolChange(tool.id)}
-              style={isActive ? { background: tool.color, color: 'white' } : {}}
-            >
-              <Icon size={18} />
-              <span className="editor-toolbar-btn-label">{tool.label}</span>
-            </motion.button>
-          )
-        })}
-      </div>
-
-      <motion.div
-        className="editor-mode-toggle"
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={onToggleMode}
-      >
-        <span className="editor-mode-toggle-label">
-          {is3DMode ? '2D Mode' : '3D Mode'}
-        </span>
-        <motion.div
-          className="editor-mode-toggle-switch"
-          animate={{
-            x: is3DMode ? 16 : 0,
-            background: is3DMode ? 'var(--primary)' : 'var(--border)'
-          }}
-          transition={{ duration: 0.3, type: 'spring', stiffness: 500 }}
-        />
-      </motion.div>
-    </motion.div>
-  )
-}
-
-// Animated Status Bar
+// ── Floating toast status bar ─────────────────────────────────────────────
 const StatusBar = ({ message, type = 'info', onClose }) => {
   const colors = {
     info: '#c07a45',
     success: '#22c55e',
     error: '#dc2626',
-    warning: '#f59e0b'
+    warning: '#f59e0b',
   }
 
   return (
     <AnimatePresence>
       {message && (
         <motion.div
-          initial={{ x: 100, opacity: 0 }}
+          initial={{ x: 60, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          exit={{ x: 100, opacity: 0 }}
-          transition={{ duration: 0.3 }}
+          exit={{ x: 60, opacity: 0 }}
+          transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           className="editor-status-bar"
           style={{ borderColor: colors[type] }}
         >
@@ -214,7 +142,7 @@ const StatusBar = ({ message, type = 'info', onClose }) => {
   )
 }
 
-// Side Panel with animations
+// ── Animated side panel ───────────────────────────────────────────────────
 const SidePanel = ({ children, isOpen, onToggle, title }) => {
   const panelControls = useAnimation()
 
@@ -245,13 +173,14 @@ const SidePanel = ({ children, isOpen, onToggle, title }) => {
         >
           {title}
         </motion.h3>
+        {/* Rotate: 0 = pointing left (collapse), 180 = pointing right (expand) */}
         <motion.button
           className="editor-side-panel-toggle"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={onToggle}
           initial={false}
-          animate={{ rotate: isOpen ? 180 : 0 }}
+          animate={{ rotate: isOpen ? 0 : 180 }}
           transition={{ duration: 0.3 }}
         >
           <ChevronLeft size={18} />
@@ -270,7 +199,7 @@ const SidePanel = ({ children, isOpen, onToggle, title }) => {
   )
 }
 
-// Enhanced Header
+// ── Header ────────────────────────────────────────────────────────────────
 const EditorHeader = ({
   projectName,
   onSave,
@@ -279,7 +208,7 @@ const EditorHeader = ({
   is3DMode,
   onToggleMode,
   onToggleSidebar,
-  isSidebarOpen
+  isSidebarOpen,
 }) => {
   return (
     <motion.header
@@ -365,8 +294,9 @@ const EditorHeader = ({
           transition={{ delay: 0.4 }}
         >
           <ThemeToggle />
+          {/* Active class highlights the button to show which mode is on */}
           <motion.button
-            className="editor-mode-toggle-btn"
+            className={is3DMode ? 'editor-mode-toggle-btn active' : 'editor-mode-toggle-btn'}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onToggleMode}
@@ -387,7 +317,7 @@ const EditorHeader = ({
   )
 }
 
-// Canvas Container with loading animation
+// ── Canvas container with loading animation ───────────────────────────────
 const CanvasContainer = ({ children, isLoading, is3DMode }) => {
   if (isLoading) {
     return (
@@ -408,7 +338,7 @@ const CanvasContainer = ({ children, isLoading, is3DMode }) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          Loading {is3DMode ? '3D' : '2D'} environment...
+          Loading {is3DMode ? '3D' : '2D'} environment…
         </motion.p>
       </motion.div>
     )
@@ -420,54 +350,18 @@ const CanvasContainer = ({ children, isLoading, is3DMode }) => {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="editor-canvas-container"
+      style={{ height: '100%' }}
     >
-      <Suspense fallback={null}>
-        {children}
-      </Suspense>
+      <div style={{ width: '100%', height: '100%' }}>
+        <Suspense fallback={null}>
+          {children}
+        </Suspense>
+      </div>
     </motion.div>
   )
 }
 
-// Quick Access Panel
-const QuickAccessPanel = ({ onAction }) => {
-  const items = [
-    { id: 'walls', icon: Cuboid, label: 'Walls', count: 4 },
-    { id: 'furniture', icon: Type, label: 'Furniture', count: 10 },
-    { id: 'materials', icon: Settings, label: 'Materials', count: 15 },
-    { id: 'camera', icon: MousePointer2, label: 'Camera', count: 3 },
-  ]
-
-  return (
-    <motion.div
-      initial={{ x: -20, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ delay: 0.5, duration: 0.5 }}
-      className="editor-quick-access"
-    >
-      {items.map((item, i) => {
-        const Icon = item.icon
-        return (
-          <motion.button
-            key={item.id}
-            className="editor-quick-access-btn"
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.6 + i * 0.05, duration: 0.5 }}
-            whileHover={{ scale: 1.05, y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onAction(item.id)}
-          >
-            <Icon size={18} />
-            <span>{item.label}</span>
-            <span className="editor-quick-access-count">{item.count}</span>
-          </motion.button>
-        )
-      })}
-    </motion.div>
-  )
-}
-
-// Main Editor Component
+// ── Main Editor component ─────────────────────────────────────────────────
 function Editor() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -484,6 +378,12 @@ function Editor() {
   const setCameraMode = useSceneStore((state) => state.setCameraMode)
   const setUiMode = useSceneStore((state) => state.setUiMode)
   const resetScene = useSceneStore((state) => state.resetScene)
+
+  const derivedProjectName = useSceneStore((state) => {
+    const fp = state.floorPlan
+    const selected = fp.rooms.find((r) => r.id === fp.selectedRoomId)
+    return selected?.name ?? fp.rooms[0]?.name ?? null
+  })
 
   const queryProjectId = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -523,15 +423,15 @@ function Editor() {
   const [isProjectLoading, setIsProjectLoading] = useState(false)
   const [saveState, setSaveState] = useState('idle')
   const [saveMessage, setSaveMessage] = useState('')
-  const [projectName, setProjectName] = useState('Untitled Project')
+  const [projectName, setProjectName] = useState(
+    () => derivedProjectName ?? 'Untitled Project',
+  )
   const [guestModePreference] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(GUEST_MODE_STORAGE_KEY) === 'true'
   })
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  const [isPropertiesPanelOpen, setIsPropertiesPanelOpen] = useState(true)
-  const [activeTool, setActiveTool] = useState('select')
 
   const isGuestMode = guestModePreference && !authUser
 
@@ -671,25 +571,14 @@ function Editor() {
     return () => unsubscribe()
   }, [])
 
-  // Update project name from floor plan
   useEffect(() => {
-    const state = useSceneStore.getState()
-    const currentProjectName = deriveProjectName(state)
-    if (currentProjectName !== projectName) {
-      setProjectName(currentProjectName)
+    if (!activeProjectId && derivedProjectName && derivedProjectName !== projectName) {
+      setProjectName(derivedProjectName)
     }
-  }, [projectName])
+  }, [activeProjectId, derivedProjectName, projectName])
 
   const handleToggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen)
-  }
-
-  const handleToggleProperties = () => {
-    setIsPropertiesPanelOpen(!isPropertiesPanelOpen)
-  }
-
-  const handleToolChange = (tool) => {
-    setActiveTool(tool)
+    setIsSidebarOpen((prev) => !prev)
   }
 
   const handleSave = async () => {
@@ -697,7 +586,7 @@ function Editor() {
     const snapshot = createSnapshotFromState(state)
 
     try {
-      setTransientStatus('saving', 'Saving project...', 0)
+      setTransientStatus('saving', 'Saving project…', 0)
 
       const saveName = projectName?.trim() || deriveProjectName(snapshot)
 
@@ -743,7 +632,7 @@ function Editor() {
         throw new Error('Sign in or continue as a guest before saving.')
       }
 
-      setTransientStatus('success', 'Project saved successfully!', 2000)
+      setTransientStatus('success', 'Project saved!', 2000)
     } catch (error) {
       console.error('Error saving project:', error)
       setTransientStatus('error', error.message || 'Failed to save project', 3000)
@@ -770,7 +659,7 @@ function Editor() {
         isSidebarOpen={isSidebarOpen}
       />
 
-      {/* Status Bar */}
+      {/* Floating status toast — rendered inside editor-shell so position:absolute works */}
       <StatusBar
         message={saveMessage}
         type={saveState}
@@ -778,7 +667,7 @@ function Editor() {
       />
 
       <div className="editor-main">
-        {/* Side Panel */}
+        {/* Left sidebar */}
         <SidePanel
           isOpen={isSidebarOpen}
           onToggle={handleToggleSidebar}
@@ -787,66 +676,29 @@ function Editor() {
           <SceneControls />
         </SidePanel>
 
-        {/* Canvas Area */}
+        {/* Canvas — now fills the full remaining width */}
         <motion.div
           className="editor-canvas-area"
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           <CanvasContainer is3DMode={is3DMode} isLoading={isProjectLoading}>
-            <Suspense
-              fallback={(
-                <div className="editor-canvas-loading">
-                  <p>Loading {is3DMode ? '3D' : '2D'} environment...</p>
-                </div>
-              )}
+            <CanvasErrorBoundary
+              key={`${activeProjectId ?? 'new'}-${is3DMode ? '3d' : '2d'}`}
+              title={is3DMode ? 'The 3D view could not be rendered.' : 'The 2D planner could not be rendered.'}
             >
-              <CanvasErrorBoundary
-                key={`${activeProjectId ?? 'new'}-${is3DMode ? '3d' : '2d'}`}
-                title={is3DMode ? 'The 3D view could not be rendered.' : 'The 2D planner could not be rendered.'}
-              >
-                {is3DMode ? (
-                  <Canvas3D
-                    cameraMode={cameraMode}
-                    preset={activePreset}
-                  />
-                ) : (
-                  <Canvas2D />
-                )}
-              </CanvasErrorBoundary>
-            </Suspense>
+              {is3DMode ? (
+                <Canvas3D
+                  cameraMode={cameraMode}
+                  preset={activePreset}
+                />
+              ) : (
+                <Canvas2D />
+              )}
+            </CanvasErrorBoundary>
           </CanvasContainer>
         </motion.div>
-
-        {/* Properties Panel */}
-        <SidePanel
-          isOpen={isPropertiesPanelOpen}
-          onToggle={handleToggleProperties}
-          title="Properties"
-        >
-          <div className="editor-properties-panel">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <h4>Selected Object</h4>
-              <p>No object selected</p>
-            </motion.div>
-          </div>
-        </SidePanel>
-
-        {/* Toolbar */}
-        <Toolbar
-          activeTool={activeTool}
-          onToolChange={handleToolChange}
-          is3DMode={is3DMode}
-          onToggleMode={toggle3DMode}
-        />
-
-        {/* Quick Access Panel */}
-        <QuickAccessPanel onAction={(id) => console.log('Quick action:', id)} />
       </div>
     </div>
   )

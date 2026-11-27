@@ -1,5 +1,30 @@
 # Changelog
 
+## Floor plan image import (2026-11-27)
+
+### Added: dashboard image-to-plan workflow
+- The dashboard's **Import Floor Plan** action accepts a PNG, JPEG, WebP or BMP, previews coloured room bounds, lets the user calibrate scale and wall contrast, and creates an editable multi-room 2D project. Processing stays in the browser; the source image is not sent to Firebase.
+- Added an end-to-end Playwright test that uploads a three-room plan with two door openings, requires exactly three detected rooms, creates the project and checks every imported room against the editor canvas boundaries.
+- Files: `src/components/FloorPlanImportModal.jsx`, `src/pages/Dashboard/Dashboard.jsx`, `src/pages/Dashboard/Dashboard.css`, `src/utils/floorPlanAnalyser.js`, `tests/floor-plan-import.spec.ts`
+
+### Fixed: room detection merged rooms and included the background
+- **Root cause:** the initial analyser expanded bright floor pixels to close gaps. That also erased thin walls and joined neighbouring rooms, while the large bright area outside the plan became another candidate room.
+- **Fix:** expand the dark wall mask instead, bridge only short wall gaps with wall support on both sides, then find enclosed bright regions. Regions touching the image edge are treated as exterior background, and small or very sparse regions are discarded.
+- Door-sized gaps up to 1.2 m at the supplied scale are sealed so connected rooms can be detected separately. Larger openings remain connected intentionally; arbitrary floor-plan recognition is not guaranteed.
+- Files: `src/utils/floorPlanAnalyser.js`
+
+### Fixed: imported plans appeared in the wrong part of the canvas
+- **Root cause:** image coordinates start at the top-left, but editor room coordinates are centred on the canvas. The initial import copied image coordinates directly, shifting rooms toward one corner or outside the editable bounds.
+- **Fix:** translate every detected room by half the source image's real-world width and depth, then add an even canvas margin. Preview dimensions remain unrounded so overlays continue to line up with the source image.
+- The editor no longer replaces an existing project's name with the selected room's name; new unsaved projects retain the previous automatic naming behaviour.
+- Files: `src/pages/Dashboard/Dashboard.jsx`, `src/pages/Editor/Editor.jsx`
+
+### Import limitations and verification
+- Detection is intended for straight-down, high-contrast images with dark walls and a light exterior margin. Irregular rooms are represented by editable rectangular bounds, room labels are named manually, and skewed or furniture-heavy images may need manual correction. No AI service, OCR dependency or schema change was introduced.
+- Image object URLs are released after loading, stale analysis responses are ignored, and project creation is disabled while an import is in progress.
+- Updated the existing save test for the current "Project saved!" status text.
+- **Verified:** `npm run typecheck`, `npm run lint` and all 6 Playwright tests pass, including guest save/reload, live WebGL and the three-room image import.
+
 ## Phase 3 — Regression tests, type safety and tooling (2026-11-25)
 
 ### Added: repeatable desktop browser regression tests

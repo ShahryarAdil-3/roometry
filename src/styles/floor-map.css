@@ -1,3 +1,10 @@
+/*
+ * floor-map.css
+ * 2D floor-planner canvas chrome — layout, geometry, and warm-linen colours.
+ * Dark-mode colour overrides live in theme-overrides.css.
+ */
+
+/* ── Shell & main grid ───────────────────────────────────────────────────── */
 .floor-map-shell {
   position: absolute;
   inset: 0;
@@ -30,93 +37,104 @@
   grid-template-rows: minmax(0, 1fr);
 }
 
+/* ── Header ──────────────────────────────────────────────────────────────── */
 .floor-map-header {
-  margin-bottom: 10px;
-  color: #1d2b37;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(152, 186, 209, 0.35);
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.65), rgba(250, 253, 255, 0.5));
-  box-shadow: 0 8px 18px rgba(75, 111, 136, 0.12);
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-bg);
+  box-shadow: var(--shadow-sm);
 }
 
-.floor-map-header h1 {
-  margin: 0;
-  font-size: 28px;
-  letter-spacing: -0.02em;
+.floor-map-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 8px;
 }
 
 .floor-map-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: 'Space Grotesk', 'Outfit', sans-serif;
-  color: #162a39;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--page-text);
+  letter-spacing: 0.02em;
 }
 
 .floor-map-description {
-  margin-top: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
+/* ── Pills row ───────────────────────────────────────────────────────────── */
 .planner-pill-row {
-  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .planner-pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
+  gap: 5px;
+  padding: 4px 8px;
   border-radius: 999px;
   font-size: 11px;
-  color: #1d4b64;
-  border: 1px solid rgba(88, 151, 186, 0.35);
-  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
+  border: 0.5px solid var(--surface-border);
+  background: var(--surface-soft-bg);
 }
 
-.floor-map-header p {
-  margin-top: 4px;
-  font-size: 14px;
-  color: #2d4051;
-}
-
+/* ── View tools strip ────────────────────────────────────────────────────── */
 .floor-map-view-tools {
-  margin-top: 8px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .floor-map-view-tools button {
-  width: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border: 1px solid rgba(22, 57, 80, 0.2);
-  background: rgba(255, 255, 255, 0.86);
-  color: #183549;
-  border-radius: 10px;
-  padding: 6px 10px;
+  gap: 5px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-soft-bg);
+  color: var(--text-secondary);
+  border-radius: var(--control-radius);
+  padding: 5px 9px;
+  font-size: 12px;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
 
-.floor-map-view-tools span {
-  font-size: 12px;
-  color: #24445a;
+.floor-map-view-tools button:hover {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  color: var(--primary);
 }
 
 .floor-map-readout {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
+.floor-map-footnote {
+  font-size: 13px;
+  margin-top: 10px;
+  color: var(--text-secondary);
+}
+
+/* ── Canvas frame ────────────────────────────────────────────────────────── */
 .floor-map-canvas {
   position: relative;
-  border-radius: 16px;
-  border: 1px solid transparent;
+  border-radius: var(--panel-radius);
+  border: 1px solid var(--surface-border);
   background: transparent;
   overflow: hidden;
   cursor: crosshair;
@@ -125,14 +143,18 @@
   height: 100%;
   min-height: 240px;
   justify-self: stretch;
-  box-shadow: none;
-  transition: box-shadow 200ms ease, transform 200ms ease;
+  transition: border-color var(--transition);
   touch-action: none;
 }
 
+.floor-map-canvas.panning {
+  cursor: grabbing;
+}
+
+/* ── Floating toolbars ───────────────────────────────────────────────────── */
 .floor-map-canvas-toolbar {
   position: absolute;
-  top: 72px; /* Avoid app-topbar overlapping */
+  top: 12px;
   right: 12px;
   z-index: 10;
   display: inline-flex;
@@ -140,9 +162,9 @@
   gap: 6px;
   padding: 6px;
   border-radius: 999px;
-  border: 1px solid rgba(79, 128, 160, 0.3);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 10px 20px rgba(56, 86, 108, 0.2);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-bg);
+  box-shadow: var(--shadow-md);
 }
 
 .floor-map-focus-controls {
@@ -155,11 +177,12 @@
   gap: 6px;
   padding: 6px;
   border-radius: 999px;
-  border: 1px solid rgba(79, 128, 160, 0.3);
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: 0 12px 24px rgba(56, 86, 108, 0.24);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-bg);
+  box-shadow: var(--shadow-md);
 }
 
+/* ── Toolbar buttons ─────────────────────────────────────────────────────── */
 .canvas-tool-btn {
   width: 30px !important;
   height: 30px;
@@ -168,21 +191,22 @@
   justify-content: center;
   padding: 0 !important;
   border-radius: 999px !important;
-  border: 1px solid rgba(93, 145, 180, 0.28) !important;
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #1a4a67;
-  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  border: 1px solid var(--surface-border) !important;
+  background: var(--surface-bg) !important;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
 
 .canvas-tool-btn:hover {
-  transform: translateY(-1px);
-  background: rgba(228, 245, 255, 0.95) !important;
-  box-shadow: 0 6px 12px rgba(67, 109, 136, 0.22);
+  border-color: var(--primary) !important;
+  background: var(--primary-light) !important;
+  color: var(--primary);
 }
 
 .canvas-tool-btn.active {
-  border-color: rgba(29, 114, 162, 0.55) !important;
-  background: linear-gradient(160deg, rgba(173, 223, 248, 0.82), rgba(145, 208, 239, 0.68)) !important;
+  border-color: var(--primary) !important;
+  background: var(--primary-light) !important;
+  color: var(--primary);
 }
 
 .focus-action-btn {
@@ -193,55 +217,44 @@
   justify-content: center;
   padding: 0 !important;
   border-radius: 999px !important;
-  border: 1px solid rgba(93, 145, 180, 0.28) !important;
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: #1a4a67;
-  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  border: 1px solid var(--surface-border) !important;
+  background: var(--surface-bg) !important;
+  color: var(--text-secondary);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
 
 .focus-action-btn:hover {
-  transform: translateY(-1px);
-  background: rgba(228, 245, 255, 0.95) !important;
-  box-shadow: 0 6px 12px rgba(67, 109, 136, 0.22);
+  border-color: var(--primary) !important;
+  background: var(--primary-light) !important;
+  color: var(--primary);
 }
 
 .focus-action-btn.active {
-  border-color: rgba(29, 114, 162, 0.55) !important;
-  background: linear-gradient(160deg, rgba(173, 223, 248, 0.82), rgba(145, 208, 239, 0.68)) !important;
+  border-color: var(--primary) !important;
+  background: var(--primary-light) !important;
+  color: var(--primary);
 }
 
 .focus-action-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
 }
 
-.floor-map-canvas:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 20px 34px rgba(67, 99, 124, 0.26);
-}
-
-.floor-map-canvas.panning {
-  cursor: grabbing;
-}
-
+/* ── Grid overlay ────────────────────────────────────────────────────────── */
 .floor-map-grid {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(to right, rgba(20, 48, 71, 0.09) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(20, 48, 71, 0.09) 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
   background-size: var(--grid-size, 40px) var(--grid-size, 40px);
   background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
 }
 
+/* ── Workspace boundary ──────────────────────────────────────────────────── */
 .floor-map-workspace {
   position: absolute;
   z-index: 1;
-  border: 2px solid rgba(44, 112, 150, 0.45);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: none;
+  border: 1.5px solid var(--surface-border);
+  background: rgba(255, 255, 255, 0.97);
   pointer-events: none;
 }
 
@@ -252,12 +265,13 @@
   padding: 3px 8px;
   font-size: 11px;
   font-weight: 500;
-  color: #16374b;
+  color: var(--text-secondary);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(22, 55, 75, 0.2);
+  background: var(--surface-bg);
+  border: 1px solid var(--surface-border);
 }
 
+/* ── Rulers ──────────────────────────────────────────────────────────────── */
 .floor-map-ruler {
   position: absolute;
   pointer-events: none;
@@ -271,7 +285,7 @@
 
 .floor-map-ruler span i {
   display: block;
-  background: rgba(24, 67, 94, 0.52);
+  background: var(--text-muted);
 }
 
 .floor-map-ruler span.major {
@@ -281,7 +295,7 @@
 .floor-map-ruler span strong {
   font-size: 10px;
   font-weight: 500;
-  color: #214962;
+  color: var(--text-secondary);
 }
 
 .floor-map-ruler-x {
@@ -289,8 +303,8 @@
   right: 0;
   top: 0;
   height: 18px;
-  background: rgba(255, 255, 255, 0.92);
-  border-bottom: 1px solid rgba(28, 78, 106, 0.18);
+  background: var(--surface-bg);
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .floor-map-ruler-x span {
@@ -312,8 +326,8 @@
   left: 0;
   width: 18px;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.92);
-  border-right: 1px solid rgba(28, 78, 106, 0.18);
+  background: var(--surface-bg);
+  border-right: 1px solid var(--surface-border);
 }
 
 .floor-map-ruler-z span {
@@ -337,15 +351,16 @@
   transform-origin: left center;
 }
 
+/* ── Room rects & draft rect ─────────────────────────────────────────────── */
 .room-rect,
 .draft-rect {
   position: absolute;
 }
 
 .room-rect {
-  border: 2px solid #2f6d93;
-  background: rgba(69, 147, 195, 0.18);
-  color: #123249;
+  border: 1.5px solid var(--surface-border);
+  background: var(--primary-light);
+  color: var(--text-secondary);
   display: grid;
   place-content: center;
   gap: 2px;
@@ -353,55 +368,57 @@
   cursor: pointer;
   z-index: 2;
   padding: 0;
-  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
 }
 
 .room-rect:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(46, 96, 131, 0.28);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .room-rect:focus-visible {
-  outline: 2px solid #f06f21;
+  outline: 2px solid var(--primary);
   outline-offset: 1px;
 }
 
 .room-rect.selected {
-  border-color: #f06f21;
-  background: rgba(240, 111, 33, 0.24);
-  box-shadow: 0 10px 22px rgba(240, 111, 33, 0.28);
+  border: 2px solid var(--primary);
+  background: var(--primary-light);
+  box-shadow: var(--shadow-md);
 }
 
 .room-rect span {
   font-size: 12px;
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.85);
   padding: 3px 6px;
   border-radius: 999px;
+  color: var(--text-secondary);
 }
 
 .room-rect small {
   font-size: 11px;
   font-weight: 500;
-  color: #123249;
-  background: rgba(255, 255, 255, 0.62);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.72);
   border-radius: 999px;
   padding: 1px 6px;
 }
 
 .draft-rect {
-  border: 2px dashed #f06f21;
-  background: rgba(240, 111, 33, 0.15);
+  border: 2px dashed var(--primary);
+  background: rgba(192, 122, 69, 0.12);
   z-index: 1;
   pointer-events: none;
 }
 
+/* ── Resize handles ──────────────────────────────────────────────────────── */
 .resize-handle {
   position: absolute;
   width: 10px;
   height: 10px;
-  border: 1px solid #0f4f75;
-  background: #ffffff;
+  border: 1px solid var(--primary);
+  background: white;
   border-radius: 2px;
 }
 
@@ -461,21 +478,11 @@
   cursor: nesw-resize;
 }
 
+/* ── Mode badge & misc ───────────────────────────────────────────────────── */
 .mode-badge {
   font-size: 12px;
   margin-bottom: 8px;
-  color: #d8e8f5;
-}
-
-.mode-toggle-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.mode-toggle-row button.active {
-  border-color: rgba(255, 183, 90, 0.8);
-  background: rgba(255, 183, 90, 0.22);
+  color: var(--text-secondary);
 }
 
 .inline-row {
@@ -493,30 +500,23 @@
   background: none;
   border: none;
   padding: 0;
-  color: #1f88b8;
+  color: var(--primary);
   font-weight: 500;
   cursor: pointer;
 }
 
 .text-link:hover {
-  color: #146c94;
+  color: var(--primary-hover);
 }
 
-.floor-map-footnote {
-  font-size: 13px;
-  margin-top: 10px;
-  color: #213545;
-}
-
+/* ── Panel enter animation ───────────────────────────────────────────────── */
 @keyframes panel-enter {
   from {
     opacity: 0;
     transform: translateY(10px) scale(0.985);
   }
-
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
-

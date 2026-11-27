@@ -206,7 +206,6 @@ export default function Room({
     const ceiling = useSceneStore((state) => state.ceiling)
     const walls = useSceneStore((state) => state.walls)
     const furniture = useSceneStore((state) => state.furniture)
-    const floorPlan = useSceneStore((state) => state.floorPlan)
 
     const resolvedWidth = width ?? room.width
     const resolvedDepth = depth ?? room.depth
@@ -216,9 +215,8 @@ export default function Room({
     const resolvedCeilingColor = ceilingColor ?? ceiling.color
     const resolvedFloorTexture = floorTexture ?? floor.textureUrl
     const resolvedWallTexture = wallTexture ?? walls.north.textureUrl
-    const selectedRoom = floorPlan.rooms.find((roomItem) => roomItem.id === floorPlan.selectedRoomId)
-    const doors = selectedRoom?.doors ?? []
-    const roomFurniture = furniture.filter((item) => item.roomId === selectedRoom?.id)
+    const doors = activeRoom?.doors ?? []
+    const roomFurniture = furniture.filter((item) => item.roomId === activeRoom?.id)
     const getDoor = (wall: WallKey) => doors.find((door) => door.wall === wall)
 
     return (

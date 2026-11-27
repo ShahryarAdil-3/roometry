@@ -283,10 +283,10 @@ const HeroSection = () => {
 // Stats section
 const StatsSection = () => {
   const stats = [
-    { number: '10K+', label: 'Designs Created' },
-    { number: '5K+', label: 'Active Users' },
     { number: '100%', label: 'Real Scale' },
-    { number: '24/7', label: 'Access' }
+    { number: '2D→3D', label: 'Instant Switch' },
+    { number: 'Free', label: 'No sign-up needed' },
+    { number: 'Open', label: 'Guest mode' },
   ]
 
   return (

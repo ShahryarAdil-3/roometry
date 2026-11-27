@@ -113,14 +113,24 @@ export default function SceneControls({ onHide }) {
     }
   }
 
-  const selectedFurniture = useMemo(
-    () => furniture.find((item) => item.id === selectedFurnitureId && item.roomId === selectedRoom?.id),
-    [furniture, selectedFurnitureId, selectedRoom?.id],
-  )
-
   const roomFurniture = useMemo(
     () => furniture.filter((item) => item.roomId === selectedRoom?.id),
     [furniture, selectedRoom?.id],
+  )
+
+  // If the stored id no longer points to an item in the current room (e.g.
+  // after a remove or room switch), treat the selection as empty. We use a
+  // derived value rather than syncing state to avoid side effects in render.
+  const effectiveSelectedId = useMemo(() => {
+    if (!selectedFurnitureId) return ''
+    return roomFurniture.some((item) => item.id === selectedFurnitureId)
+      ? selectedFurnitureId
+      : ''
+  }, [roomFurniture, selectedFurnitureId])
+
+  const selectedFurniture = useMemo(
+    () => furniture.find((item) => item.id === effectiveSelectedId && item.roomId === selectedRoom?.id),
+    [furniture, effectiveSelectedId, selectedRoom?.id],
   )
 
   const handlePlaceFurniture = (template) => {
@@ -157,21 +167,6 @@ export default function SceneControls({ onHide }) {
       [key]: nextValues,
     })
   }
-
-  useEffect(() => {
-    if (!selectedRoom || !selectedFurnitureId) {
-      return
-    }
-
-    const stillExists = furniture.some(
-      (item) => item.id === selectedFurnitureId && item.roomId === selectedRoom.id,
-    )
-    if (!stillExists) {
-      // Defer state update to avoid synchronous state change inside effect
-      // which can trigger the react-hooks/set-state-in-effect rule.
-      setTimeout(() => setSelectedFurnitureId(''), 0)
-    }
-  }, [furniture, selectedFurnitureId, selectedRoom])
 
   useEffect(() => {
     const message = floorPlan.constraintMessage
@@ -321,7 +316,7 @@ export default function SceneControls({ onHide }) {
             setFurniturePlacement={setFurniturePlacement}
             selectedRoom={selectedRoom}
             selectedFurniture={selectedFurniture}
-            selectedFurnitureId={selectedFurnitureId}
+            selectedFurnitureId={effectiveSelectedId}
             setSelectedFurnitureId={setSelectedFurnitureId}
             roomFurniture={roomFurniture}
             updateSelectedFurniture={updateSelectedFurniture}

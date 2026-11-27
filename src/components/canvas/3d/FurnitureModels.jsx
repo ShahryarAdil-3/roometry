@@ -1,7 +1,7 @@
 // Realistic 3D Furniture Models with accurate real-world dimensions
 // All dimensions are in meters based on standard furniture sizes
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 
 // Realistic dimensions (in meters):
@@ -12,7 +12,25 @@ import * as THREE from 'three'
 // Desk: 1.4m x 0.7m x 0.75m
 // Cabinet: 0.6m x 0.6m x 1.8m
 
-// Custom geometry components for realistic furniture
+// Dispose every geometry and material in a Group to prevent GPU memory leaks.
+const disposeGroup = (group) => {
+  group.traverse((obj) => {
+    if (!obj.isMesh) return
+    obj.geometry?.dispose()
+    if (Array.isArray(obj.material)) {
+      obj.material.forEach((m) => m.dispose())
+    } else {
+      obj.material?.dispose()
+    }
+  })
+}
+
+// Wrapper that auto-disposes the THREE.Group produced by useMemo when the
+// component unmounts or when the group reference changes.
+function AutoDisposePrimitive({ object, ...props }) {
+  useEffect(() => () => disposeGroup(object), [object])
+  return <primitive object={object} {...props} />
+}
 
 // Modern Sofa with cushions
 function Sofa({ color = '#7a8a99', ...props }) {
@@ -97,7 +115,7 @@ function Sofa({ color = '#7a8a99', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={sofaGroup} {...props} />
+  return <AutoDisposePrimitive object={sofaGroup} {...props} />
 }
 
 // Modern Dining Chair
@@ -158,7 +176,7 @@ function Chair({ color = '#5c6370', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={chairGroup} {...props} />
+  return <AutoDisposePrimitive object={chairGroup} {...props} />
 }
 
 // Dining Table
@@ -212,7 +230,7 @@ function Table({ color = '#8c6a4f', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={tableGroup} {...props} />
+  return <AutoDisposePrimitive object={tableGroup} {...props} />
 }
 
 // Queen Size Bed
@@ -300,7 +318,7 @@ function Bed({ color = '#7688a1', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={bedGroup} {...props} />
+  return <AutoDisposePrimitive object={bedGroup} {...props} />
 }
 
 // Office Desk
@@ -381,7 +399,7 @@ function Desk({ color = '#7a5a44', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={deskGroup} {...props} />
+  return <AutoDisposePrimitive object={deskGroup} {...props} />
 }
 
 // Bookshelf/Cabinet
@@ -455,7 +473,7 @@ function Cabinet({ color = '#5f7182', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={cabinetGroup} {...props} />
+  return <AutoDisposePrimitive object={cabinetGroup} {...props} />
 }
 
 // Wardrobe/Closet
@@ -509,7 +527,7 @@ function Wardrobe({ color = '#4a5a6a', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={wardrobeGroup} {...props} />
+  return <AutoDisposePrimitive object={wardrobeGroup} {...props} />
 }
 
 // Coffee Table
@@ -565,7 +583,7 @@ function CoffeeTable({ color = '#6a5a4a', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={tableGroup} {...props} />
+  return <AutoDisposePrimitive object={tableGroup} {...props} />
 }
 
 // Floor Lamp
@@ -623,7 +641,7 @@ function FloorLamp({ color = '#3a3a3a', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={lampGroup} {...props} />
+  return <AutoDisposePrimitive object={lampGroup} {...props} />
 }
 
 // Bookshelf
@@ -686,7 +704,7 @@ function Bookshelf({ color = '#4a4a3a', ...props }) {
     return group
   }, [color])
 
-  return <primitive object={bookshelfGroup} {...props} />
+  return <AutoDisposePrimitive object={bookshelfGroup} {...props} />
 }
 
 // Main export component

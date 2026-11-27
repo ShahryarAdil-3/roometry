@@ -353,19 +353,19 @@ export default function Canvas3D({ cameraMode, preset, onFirstPersonLockChange }
         onCreated={handleCanvasCreated}
       >
       <CameraSync preset={preset} />
-      <color attach="background" args={['#a9bfce']} />
-      <fog attach="fog" args={['#a9bfce', 8, 32]} />
-      <hemisphereLight intensity={0.52} groundColor="#6f6f7a" color="#e4f4ff" />
-      <ambientLight intensity={0.18} color="#d9ecff" />
+      <color attach="background" args={['#d4cfc8']} />
+      <fog attach="fog" args={['#d4cfc8', 10, 36]} />
+      <hemisphereLight intensity={0.6} groundColor="#8a7260" color="#f5e8d5" />
+      <ambientLight intensity={0.2} color="#f5e8d5" />
       <directionalLight
         castShadow
         position={[6, 9, 5]}
-        intensity={1.25}
-        color="#fff2d9"
+        intensity={1.3}
+        color="#fff8f0"
         shadow-mapSize={[2048, 2048]}
       />
-      <directionalLight position={[-5, 4, -6]} intensity={0.45} color="#9edfff" />
-      <spotLight position={[0, room.height + 2.5, 0]} angle={0.55} intensity={0.38} color="#a9efff" />
+      <directionalLight position={[-5, 4, -6]} intensity={0.5} color="#f0d5b8" />
+      <spotLight position={[0, room.height + 2.5, 0]} angle={0.55} intensity={0.4} color="#fff8f0" />
 
       <Room
         onFurniturePointerDown={handleFurniturePointerDown}
